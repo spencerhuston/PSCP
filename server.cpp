@@ -17,12 +17,12 @@ sock(sock), serv_num(servicer_num++), key(make_rand()) {
 // launch servicing process
 void Servicer::
 service() {
-
+	
 }
 
 // request client for username and password and check credentials
 // ***XOR key sent with request***
-void Servicer::
+bool Servicer::
 authenticate_user() {
 
 }
@@ -69,6 +69,16 @@ chunk_size(chunk_size), key(key), start_byte(start_byte) {
 // copy files over connection
 void Dispatcher::
 send_file_data() {
+
+}
+
+void Dispatcher::
+encrypt(std::string & str) {
+
+}
+
+void Dispatcher::
+decrypt(std::string & str) {
 
 }
 /*========== END DISPATCHER =======================*/

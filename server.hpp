@@ -2,7 +2,6 @@
 
 #define _DEFAULT_SOURCE
 
-// C libraries
 	// authentication
 #include <sys/types.h>
 #include <pwd.h>
@@ -18,7 +17,6 @@
 	// key generation
 #include <time.h>
 
-// C++ libraries
 	// threads
 #include <mutex>
 #include <atomic>
@@ -48,11 +46,14 @@ class Servicer {
 		const int sock, key, serv_num;
 		
 		void service();
-		void authenticate_user();
+		bool authenticate_user();
 		bool check_file_dir(const std::string & fp);
 		void send_file_info(const std::string & fp);
 		void get_header();
 		void start_thread_dispatch();
+	
+		void encrypt(std::string & str);
+		void decrypt(std::string & str);
 
 	public:
 		Servicer(int & sock);
@@ -65,6 +66,9 @@ class Dispatcher {
 		const char start_byte;
 		
 		void send_file_data();
+
+		void encrypt(std::string & str);
+		void decrypt(std::string & str);
 
 	public:
 		Dispatcher(const std::string & file_name,
