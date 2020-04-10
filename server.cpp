@@ -6,12 +6,15 @@ Servicer::
 Servicer(int & sock) : 
 sock(sock), serv_num(servicer_num++), key(make_rand()) {
 	std::string constructor_str = "";
-	constructor_str += "Launching servicer " + serv_num;
-	constructor_str += " with key " + key;
+	constructor_str += "Launching servicer ";
+	constructor_str += std::to_string(serv_num);
+	constructor_str += " with key ";
+	constructor_str += std::to_string(key);
 
 	print(constructor_str);
 
 	this->service();
+	close(sock);
 }
 
 // launch servicing process
@@ -103,6 +106,7 @@ print(const std::string & str) {
 	mtx.unlock();
 }
 
+// get host info to print out
 std::pair<std::string, std::string>
 get_host_info() {
 	char host_buff[256];
@@ -118,12 +122,15 @@ get_host_info() {
 							std::string(ip_buff));
 }
 
-int 
-main(int argc, char ** argv) {
-	int server_sock, client_sock;
+// handle CTRL-C
+void handler(int s) {
+	std::cout << "Shutting server down\n";
+	close(server_sock);
+	exit(0);
+}
+
+void bind_socket() {
 	struct addrinfo hints, *serv_info, *p;
-	struct sockaddr_storage client_addr;
-	socklen_t sin_size;
 	char s[INET6_ADDRSTRLEN];
 	int res, yes = 1;
 
@@ -131,6 +138,7 @@ main(int argc, char ** argv) {
 	hints.ai_family = AF_UNSPEC;
 	hints.ai_socktype = SOCK_STREAM;
 	hints.ai_flags = AI_PASSIVE;
+	hints.ai_protocol = IPPROTO_TCP;
 
 	if ((res = getaddrinfo(NULL, std::to_string(PORT).c_str(), &hints, &serv_info)) != 0) {
 		fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(res));
@@ -163,6 +171,15 @@ main(int argc, char ** argv) {
 		std::cerr << "Failed to bind socket\n";
 		exit(1);
 	}
+}
+
+int 
+main(int argc, char ** argv) {
+	int client_sock;
+	socklen_t sin_size;
+	struct sockaddr_storage client_addr;
+	
+	bind_socket();
 
 	if (listen(server_sock, MAX_CLIENTS)) {
 		perror("Listen");
@@ -173,6 +190,12 @@ main(int argc, char ** argv) {
 	auto host_info = get_host_info();
 	std::cout << "Server name: " << host_info.first << '\n';
 	std::cout << "Server IP: " << host_info.second << '\n';
+
+	struct sigaction kill_handler;
+	kill_handler.sa_handler = handler;
+	sigemptyset(&kill_handler.sa_mask);
+	kill_handler.sa_flags = 0;
+	sigaction(SIGINT, &kill_handler, NULL);
 
 	srand(time(0));
 

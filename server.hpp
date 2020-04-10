@@ -39,8 +39,13 @@
 std::atomic<int> servicer_num(0);
 std::mutex mtx;
 
+int server_sock;
+
 int make_rand();
 void print(const std::string & str);
+std::pair<std::string, std::string> get_host_info();
+void handler(int s);
+void bind_socket();
 
 class Servicer {
 	private:

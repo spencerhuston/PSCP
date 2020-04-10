@@ -71,6 +71,7 @@ main(int argc, char ** argv) {
 	memset(&hints, 0, sizeof(hints));
 	hints.ai_family = AF_UNSPEC;
 	hints.ai_socktype = SOCK_STREAM;
+	hints.ai_protocol = IPPROTO_TCP;
 
 	if ((res = getaddrinfo(argv[2], std::to_string(PORT).c_str(), &hints, &serv_info)) != 0) {
 		fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(res));
@@ -103,6 +104,8 @@ main(int argc, char ** argv) {
 
 	freeaddrinfo(serv_info);
 	std::cout << "Connection made\n";
+
+	while (1) {}
 
 	close(sock);
 
