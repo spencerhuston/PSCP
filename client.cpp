@@ -46,6 +46,10 @@ decrypt(std::string & str) {
 
 }
 
+void * get_in_addr(struct sockaddr * sa) {
+	return &(((struct sockaddr_in *)sa)->sin_addr);
+}
+
 int 
 main(int argc, char ** argv) {
 	bool is_num = true;
@@ -58,23 +62,44 @@ main(int argc, char ** argv) {
 		exit(1);
 	}	
 
-	int sock;
-	struct sockaddr_in server_addr;
+	char s[INET_ADDRSTRLEN];
+	struct addrinfo hints, *serv_info, *p;
+	int res;
+	
+	memset(&hints, 0, sizeof(hints));
+	hints.ai_family = AF_INET;
+	hints.ai_socktype = SOCK_STREAM;
 
-	sock = socket(PF_INET, SOCK_STREAM, 0);
-
-	server_addr.sin_family = AF_INET;
-	server_addr.sin_port = htons(PORT);
-	server_addr.sin_addr.s_addr = inet_addr(argv[2]);
-
-	memset(server_addr.sin_zero, '\0', sizeof(server_addr.sin_zero));
-
-	if (connect(sock, (struct sockaddr *)&server_addr, sizeof(server_addr)) == 0)
-		std::cout << "Connection made\n";
-	else {
-		std::cout << "Connection failed\n";
+	if ((res = getaddrinfo(argv[1], std::to_string(PORT).c_str(), &hints, &serv_info)) != 0) {
+		fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(res));
 		exit(1);
 	}
+
+	int sock;
+	for (p = serv_info; p != NULL; p = p->ai_next) {
+		if ((sock = socket(p->ai_family, p->ai_socktype, p->ai_protocol)) == -1) {
+			perror("Socket init error");
+			continue;
+		}
+
+		if (connect(sock, p->ai_addr, p->ai_addrlen) == -1) {
+			close(sock);
+			perror("Socket connect error");
+			continue;
+		}
+
+		break;
+	}
+
+	if (p == NULL) {
+		std::cerr << "Failed to connect\n";
+		exit(2);
+	}
+
+	inet_ntop(p->ai_family, get_in_addr((struct sockaddr *)p->ai_addr), s, sizeof(s));
+
+	freeaddrinfo(serv_info);
+	std::cout << "Connection made\n";
 
 	return 0;
 }

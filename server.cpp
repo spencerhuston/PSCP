@@ -103,6 +103,21 @@ print(const std::string & str) {
 	mtx.unlock();
 }
 
+std::pair<std::string, std::string>
+get_host_info() {
+	char host_buff[256];
+	char *ip_buff;
+	struct hostent * host_ent;
+	int host_name;
+
+	host_name = gethostname(host_buff, 256);
+	host_ent = gethostbyname(host_buff);
+	ip_buff = inet_ntoa(*((struct in_addr *)host_ent->h_addr_list[0]));
+	
+	return std::make_pair<std::string, std::string>(std::string(host_buff), 
+							std::string(ip_buff));
+}
+
 int 
 main(int argc, char ** argv) {
 	int server_sock, client_sock;
@@ -120,20 +135,13 @@ main(int argc, char ** argv) {
 	
 	addr_len = sizeof(server_addr);
 	bind(server_sock, (struct sockaddr *)&server_addr, addr_len);
-
-	char hostbuff[256];
-	char *ipbuff;
-	struct hostent * host_ent;
-	int hostname;
-
-	hostname = gethostname(hostbuff, 256);
-	host_ent = gethostbyname(hostbuff);
-	ipbuff = inet_ntoa(*((struct in_addr *) host_ent->h_addr_list[0]));
-
+	
+	auto host_info = get_host_info();
+	
 	if (listen(server_sock, MAX_CLIENTS) == 0) {
 		std::cout << "Server is listening\n";
-		std::cout << "Host name: " << std::string(hostbuff) << '\n';
-		std::cout << "Host IP: " << std::string(ipbuff) << '\n';
+		std::cout << "Host name: " << host_info.first << '\n';
+		std::cout << "Host IP: " << host_info.second << '\n';
 	}
 	else
 		std::cout << "Error listening, closing\n";
