@@ -47,7 +47,9 @@ decrypt(std::string & str) {
 }
 
 void * get_in_addr(struct sockaddr * sa) {
-	return &(((struct sockaddr_in *)sa)->sin_addr);
+	if (sa->sa_family == AF_INET)
+		return &(((struct sockaddr_in *)sa)->sin_addr);
+	return &(((struct sockaddr_in6 *)sa)->sin6_addr);
 }
 
 int 
@@ -62,12 +64,12 @@ main(int argc, char ** argv) {
 		exit(1);
 	}	
 
-	char s[INET_ADDRSTRLEN];
+	char s[INET6_ADDRSTRLEN];
 	struct addrinfo hints, *serv_info, *p;
 	int res;
 	
 	memset(&hints, 0, sizeof(hints));
-	hints.ai_family = AF_INET;
+	hints.ai_family = AF_UNSPEC;
 	hints.ai_socktype = SOCK_STREAM;
 
 	if ((res = getaddrinfo(argv[1], std::to_string(PORT).c_str(), &hints, &serv_info)) != 0) {
