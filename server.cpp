@@ -20,14 +20,41 @@ sock(sock), serv_num(servicer_num++), key(make_rand()) {
 // launch servicing process
 void Servicer::
 service() {
-	
+	if (authenticate_user().first) {
+		//valid
+	} else {
+		// send second
+		return;
+	}
 }
 
 // request client for username and password and check credentials
 // ***XOR key sent with request***
-bool Servicer::
+std::pair<bool, std::string> Servicer::
 authenticate_user() {
+	std::string authreq_key = "AUTHREQ KEY ";
+	authreq_key += std::to_string(this->key);
 
+	send(this->sock, authreq_key.c_str(), authreq_key.length(), 0);
+
+	char recv_buff[MAXDATA];
+	int byte_num;
+	if ((byte_num = recv(this->sock, recv_buff, MAXDATA - 1, 0)) == -1) {
+		perror("recv, authenticate_user");
+		return std::make_pair<bool, std::string>(false, std::string("Server error"));
+	}
+	recv_buff[byte_num] = '\0';
+
+	std::string res = std::string(recv_buff);
+	decrypt(res);
+
+	std::istringstream res_ss(res);
+	std::vector<std::string> res_toks((std::istream_iterator<std::string>(res_ss)),
+			std::istream_iterator<std::string>());
+
+	// authenticate here
+
+	return std::make_pair<bool, std::string>(true, nullptr);
 }
 
 // check if file or directory exists
@@ -52,6 +79,18 @@ get_header() {
 void Servicer::
 start_thread_dispatch() {
 
+}
+
+void Servicer::
+encrypt(std::string & str) {
+	for (auto & c : str)
+		c = c ^ this->key;
+}
+
+void Servicer::
+decrypt(std::string & str) {
+	for (auto & c : str)
+		c = c ^ this->key;
 }
 /*========== END SERVICER =========================*/
 
@@ -90,10 +129,13 @@ decrypt(std::string & str) {
 
 /*========== BEGIN MAIN ===========================*/
 // Generate key for XOR
-int 
+uint16_t
 make_rand() {
 	mtx.lock();
-	int key = rand();	
+	std::random_device rd;
+	std::mt19937 eng(rd());
+	std::uniform_int_distribution<> dist(10000, 65535);
+	uint16_t key = dist(eng);
 	mtx.unlock();
 	return key;
 }
@@ -196,8 +238,6 @@ main(int argc, char ** argv) {
 	sigemptyset(&kill_handler.sa_mask);
 	kill_handler.sa_flags = 0;
 	sigaction(SIGINT, &kill_handler, NULL);
-
-	srand(time(0));
 
 	while (true) {
 		sin_size = sizeof(client_addr);

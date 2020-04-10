@@ -1,7 +1,5 @@
 #pragma once
 
-#define _DEFAULT_SOURCE
-
 	// authentication
 #include <sys/types.h>
 #include <pwd.h>
@@ -17,7 +15,7 @@
 #include <signal.h>
 
 	// key generation
-#include <time.h>
+#include <random>
 
 	// threads
 #include <mutex>
@@ -32,16 +30,19 @@
 #include <fstream>
 #include <cstdint>
 #include <iostream>
+#include <sstream>
+#include <iterator>
 
 #define MAX_CLIENTS 30
 #define PORT 8000
+#define MAXDATA 1024
 
 std::atomic<int> servicer_num(0);
 std::mutex mtx;
 
 int server_sock;
 
-int make_rand();
+uint16_t make_rand();
 void print(const std::string & str);
 std::pair<std::string, std::string> get_host_info();
 void handler(int s);
@@ -50,10 +51,11 @@ void bind_socket();
 class Servicer {
 	private:
 		std::string dispatch_header;
-		const int sock, key, serv_num;
+		const int sock, serv_num;
+		const uint16_t key;
 		
 		void service();
-		bool authenticate_user();
+		std::pair<bool, std::string> authenticate_user();
 		bool check_file_dir(const std::string & fp);
 		void send_file_info(const std::string & fp);
 		void get_header();
