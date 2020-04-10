@@ -114,14 +114,27 @@ main(int argc, char ** argv) {
 
 	server_addr.sin_family = AF_INET;
 	server_addr.sin_port = htons(PORT);
-	server_addr.sin_addr.s_addr = inet_addr("127.0.0.1");
+	server_addr.sin_addr.s_addr = INADDR_ANY;
 
 	memset(server_addr.sin_zero, '\0', sizeof(server_addr.sin_zero));
+	
+	addr_len = sizeof(server_addr);
+	bind(server_sock, (struct sockaddr *)&server_addr, addr_len);
 
-	bind(server_sock, (struct sockaddr *)&server_addr, sizeof(server_addr));
+	char hostbuff[256];
+	char *ipbuff;
+	struct hostent * host_ent;
+	int hostname;
 
-	if (listen(server_sock, MAX_CLIENTS) == 0)
+	hostname = gethostname(hostbuff, 256);
+	host_ent = gethostbyname(hostbuff);
+	ipbuff = inet_ntoa(*((struct in_addr *) host_ent->h_addr_list[0]));
+
+	if (listen(server_sock, MAX_CLIENTS) == 0) {
 		std::cout << "Server is listening\n";
+		std::cout << "Host name: " << std::string(hostbuff) << '\n';
+		std::cout << "Host IP: " << std::string(ipbuff) << '\n';
+	}
 	else
 		std::cout << "Error listening, closing\n";
 

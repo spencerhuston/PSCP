@@ -7,6 +7,7 @@
 #include <pwd.h>
 
 	// networking
+#include <netdb.h>
 #include <unistd.h>
 #include <sys/socket.h>
 #include <stdlib.h>
