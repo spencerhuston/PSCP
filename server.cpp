@@ -170,6 +170,9 @@ main(int argc, char ** argv) {
 	}
 
 	std::cout << "Listening for connections\n";
+	auto host_info = get_host_info();
+	std::cout << "Server name: " << host_info.first << '\n';
+	std::cout << "Server IP: " << host_info.second << '\n';
 
 	srand(time(0));
 

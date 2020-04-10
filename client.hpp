@@ -21,7 +21,7 @@
 #include <iostream>
 #include <fstream>
 
-#define PORT 9000
+#define PORT 8000
 
 class Client {
 	private:
