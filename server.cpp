@@ -121,38 +121,68 @@ get_host_info() {
 int 
 main(int argc, char ** argv) {
 	int server_sock, client_sock;
-	struct sockaddr_in server_addr;
-	struct sockaddr_storage server_storage;
-	socklen_t addr_len;
+	struct addrinfo hints, *serv_info, *p;
+	struct sockaddr_storage client_addr;
+	socklen_t sin_size;
+	char s[INET6_ADDRSTRLEN];
+	int res, yes = 1;
 
-	server_sock = socket(PF_INET, SOCK_STREAM, 0);
+	memset(&hints, 0, sizeof(hints));
+	hints.ai_family = AF_UNSPEC;
+	hints.ai_socktype = SOCK_STREAM;
+	hints.ai_flags = AI_PASSIVE;
 
-	server_addr.sin_family = AF_INET;
-	server_addr.sin_port = htons(PORT);
-	server_addr.sin_addr.s_addr = INADDR_ANY;
-
-	memset(server_addr.sin_zero, '\0', sizeof(server_addr.sin_zero));
-	
-	addr_len = sizeof(server_addr);
-	bind(server_sock, (struct sockaddr *)&server_addr, addr_len);
-	
-	auto host_info = get_host_info();
-	
-	if (listen(server_sock, MAX_CLIENTS) == 0) {
-		std::cout << "Server is listening\n";
-		std::cout << "Host name: " << host_info.first << '\n';
-		std::cout << "Host IP: " << host_info.second << '\n';
+	if ((res = getaddrinfo(NULL, std::to_string(PORT).c_str(), &hints, &serv_info)) != 0) {
+		fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(res));
+		exit(1);
 	}
-	else
-		std::cout << "Error listening, closing\n";
+
+	for (p = serv_info; p != NULL; p = p->ai_next) {
+		if ((server_sock = socket(p->ai_family, p->ai_socktype, p->ai_protocol)) == -1) {
+			perror("Socket init");
+			continue;
+		}	
+
+		if (setsockopt(server_sock, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(int)) == -1) {
+			perror("setsockopt");
+			continue;
+		}
+
+		if (bind(server_sock, p->ai_addr, p->ai_addrlen) == -1) {
+			close(server_sock);
+			perror("socket bind");
+			continue;
+		}
+
+		break;
+	}
+
+	freeaddrinfo(serv_info);
+
+	if (p == NULL) {
+		std::cerr << "Failed to bind socket\n";
+		exit(1);
+	}
+
+	if (listen(server_sock, MAX_CLIENTS)) {
+		perror("Listen");
+		exit(1);
+	}
+
+	std::cout << "Listening for connections\n";
 
 	srand(time(0));
 
 	while (true) {
-		addr_len = sizeof(server_storage);
+		sin_size = sizeof(client_addr);
 		client_sock = accept(server_sock, 
-				(struct sockaddr *)&server_storage, &addr_len);
-		
+				(struct sockaddr *)&client_addr, &sin_size);
+
+		if (client_sock == -1) {
+			perror("Client accept");
+			continue;
+		}	
+	
 		std::thread service([](int & sock){
 				std::unique_ptr<Servicer> servicer(new Servicer(sock));
 			}, std::ref(client_sock));
