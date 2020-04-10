@@ -14,6 +14,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <cstring>
+#include <signal.h>
 
 	// key generation
 #include <time.h>
