@@ -27,32 +27,22 @@ sock(sock), serv_num(servicer_num++), key(make_rand()) {
 // launch servicing process
 void Servicer::
 service() {
-	if (authenticate_user().first) {
-		//valid
-	} else {
-		// send second
+	if (!authenticate_user() || !check_file_dir())
 		return;
-	}
+
+	// continue here after file info processed
 }
 
 // request client for username and password and check credentials
 // ***XOR key sent with request***
-std::pair<bool, std::string> Servicer::
+bool Servicer::
 authenticate_user() {
 	std::string authreq_key = "AUTHREQ KEY ";
 	authreq_key += std::to_string(this->key);
 
 	send(this->sock, authreq_key.c_str(), authreq_key.length(), 0);
 
-	char recv_buff[MAXDATA];
-	int byte_num;
-	if ((byte_num = recv(this->sock, recv_buff, MAXDATA - 1, 0)) == -1) {
-		perror("recv, authenticate_user");
-		return std::make_pair<bool, std::string>(false, std::string("Server error"));
-	}
-	recv_buff[byte_num] = '\0';
-
-	std::string res = std::string(recv_buff);
+	std::string res = recv_str(this->sock);
 	this->crypt(res);
 
 	std::istringstream res_ss(res);
@@ -60,14 +50,39 @@ authenticate_user() {
 			std::istream_iterator<std::string>());
 
 	// authenticate here
+	print(res_toks.at(1));
 
-	return std::make_pair<bool, std::string>(true, nullptr);
+	return true; 
 }
 
 // check if file or directory exists
 bool Servicer::
-check_file_dir(const std::string & fp) {
-	
+check_file_dir() {
+	std::string res = "VALID";
+	crypt(res);
+	send(this->sock, res.c_str(), res.length(), 0);
+
+	res = recv_str(this->sock);
+	this->crypt(res);
+
+	mtx.lock();
+	bool exists = (access(res.c_str(), F_OK) != -1);
+	mtx.unlock();
+
+	if (!exists) {
+		std::string err = "NOFILE\n";
+		crypt(err);
+		send(this->sock, err.c_str(), err.length(), 0);
+		return false;
+	}
+
+	struct stat path;
+	stat(res.substr(res.find(" ") + 1, res.length() - res.find(" ")).c_str(), &path);
+	bool is_not_dir = S_ISREG(path.st_mode);	
+
+	// directory stuff here
+
+	return true;
 }
 
 // send file info to client to process 

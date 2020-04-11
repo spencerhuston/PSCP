@@ -32,6 +32,7 @@ std::mutex mtx;
 void * get_in_addr(struct sockaddr * sa);
 void bind_socket(std::string & host_name);
 uint16_t parse_key(const std::string & authreq);
+std::string recv_str(int & sock);
 
 class Client {
 	private:

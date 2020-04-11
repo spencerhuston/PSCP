@@ -12,8 +12,8 @@ class Servicer {
 		const uint16_t key;
 		
 		void service();
-		std::pair<bool, std::string> authenticate_user();
-		bool check_file_dir(const std::string & fp);
+		bool authenticate_user();
+		bool check_file_dir();
 		void send_file_info(const std::string & fp);
 		void get_header();
 		void start_thread_dispatch();

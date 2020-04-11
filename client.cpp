@@ -4,7 +4,7 @@ Client::
 Client(std::string & file_name, int & thread_num, uint16_t & key) :
 file_name(file_name), thread_num(thread_num), key(key) {
 	if (authenticate()) {
-		
+			
 	}
 }
 
@@ -22,9 +22,30 @@ authenticate() {
 	res += username;
 	res += " PASS ";
 	res += password;
-	
+
 	crypt(res);
-	send(sock, res.c_str(), res.length(), 0);	
+	send(sock, res.c_str(), res.length(), 0);
+
+	res = recv_str(sock);
+	crypt(res);
+	if (res != "VALID") 
+		return false;
+
+	res = "FILENAME ";
+	res += this->file_name;
+
+	crypt(res);
+	send(sock, res.c_str(), res.length(), 0);
+	
+	res = recv_str(sock);
+	crypt(res);
+
+	if (res == "NOFILE") {
+		std::cout << "File does not exist or you do not have access to it\n";
+		exit(0);
+	}
+
+	std::cout << res << '\n';
 }
 
 void Client::
@@ -125,6 +146,19 @@ parse_key(const std::string & authreq) {
 	return (uint16_t)atoi(req_toks.at(2).c_str());
 }
 
+std::string
+recv_str(int & sock) {
+	char recv_buff[MAXDATA];
+	int byte_num;
+	if ((byte_num = recv(sock, recv_buff, MAXDATA - 1, 0)) == -1) {
+		perror("recv");
+		exit(1);
+	}
+	recv_buff[byte_num] = '\0';
+
+	return std::string(recv_buff);
+}
+
 int 
 main(int argc, char ** argv) {
 	// check thread num is a number
@@ -155,13 +189,7 @@ main(int argc, char ** argv) {
 	std::cout << "Connection made\n";
 
 	// receive authentication request and XOR key
-	char recv_buff[MAXDATA];
-	int byte_num;
-	if ((byte_num = recv(sock, recv_buff, MAXDATA - 1, 0)) == -1) {
-		perror("recv");
-		exit(1);
-	}
-	recv_buff[byte_num] = '\0';
+	std::string recv_buff = recv_str(sock);	
 
 	// construct client object to take over the rest of the process
 	int thread_num = atoi(argv[1]);

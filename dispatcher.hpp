@@ -30,11 +30,14 @@
 #include <sstream>
 #include <iterator>
 #include <cstdint>
+#include <sys/stat.h>
 
 #define MAXDATA 1024
 
 extern std::mutex mtx;
 extern std::atomic<int> servicer_num;
+
+std::string recv_str(const int & sock);
 void print(const std::string & str);
 
 class Dispatcher {
