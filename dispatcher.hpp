@@ -23,6 +23,7 @@
 	// file I/O
 #include <string>
 #include <fstream>
+#include <filesystem>
 
 	// other
 #include <vector>
@@ -37,18 +38,25 @@
 extern std::mutex mtx;
 extern std::atomic<int> servicer_num;
 
-std::string recv_str(const int & sock);
+std::string recv(const int & sock);
+std::string recv_str(const int & sock, const uint16_t & key);
+void send_str(const int & sock, std::string & str, const uint16_t & key);
+
+void crypt_pscp(std::string & str, const uint16_t & key);
+
 void print(const std::string & str);
 
 class Dispatcher {
 	private:
 		const std::string file_name, header;
-		const int sock, chunk_size, key, port;
+		const int sock, chunk_size, port;
+		const uint16_t key;
 		const char start_byte;
 		
 		void send_file_data();
 
-		void crypt(std::string & str);
+		std::string d_recv();
+		void d_send(std::string & str);
 
 	public:
 		Dispatcher(const std::string & file_name,
@@ -56,6 +64,6 @@ class Dispatcher {
 			   int & sock,
 			   int & port, 
 			   int & chunk_size, 
-			   int & key, 
+			   uint16_t & key, 
 			   char & start_byte);
 };

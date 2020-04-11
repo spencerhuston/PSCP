@@ -17,8 +17,9 @@ class Servicer {
 		void send_file_info(const std::string & fp);
 		void get_header();
 		void start_thread_dispatch();
-	
-		void crypt(std::string & str);
+
+		std::string s_recv();
+		void s_send(std::string & str);
 
 	public:
 		Servicer(int & sock);

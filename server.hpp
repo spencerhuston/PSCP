@@ -35,7 +35,9 @@ std::mutex mtx;
 int server_sock;
 
 uint16_t make_rand();
-void print(const std::string & str);
-std::pair<std::string, std::string> get_host_info();
+
 void handler(int s);
+
+std::pair<std::string, std::string> get_host_info();
 void bind_socket();
+

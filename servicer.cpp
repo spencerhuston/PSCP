@@ -20,7 +20,7 @@ sock(sock), serv_num(servicer_num++), key(make_rand()) {
 
 	print(constructor_str);
 
-	this->service();
+	service();
 	close(sock);
 }
 
@@ -38,12 +38,11 @@ service() {
 bool Servicer::
 authenticate_user() {
 	std::string authreq_key = "AUTHREQ KEY ";
-	authreq_key += std::to_string(this->key);
+	authreq_key += std::to_string(key);
 
-	send(this->sock, authreq_key.c_str(), authreq_key.length(), 0);
+	send(sock, authreq_key.c_str(), authreq_key.length(), 0);
 
-	std::string res = recv_str(this->sock);
-	this->crypt(res);
+	std::string res = s_recv();
 
 	std::istringstream res_ss(res);
 	std::vector<std::string> res_toks((std::istream_iterator<std::string>(res_ss)),
@@ -59,28 +58,31 @@ authenticate_user() {
 bool Servicer::
 check_file_dir() {
 	std::string res = "VALID";
-	crypt(res);
-	send(this->sock, res.c_str(), res.length(), 0);
+	s_send(res);
 
-	res = recv_str(this->sock);
-	this->crypt(res);
+	res = s_recv();
+	res = res.substr(res.find(" ") + 1, res.length() - res.find(" "));
 
-	mtx.lock();
-	bool exists = (access(res.c_str(), F_OK) != -1);
-	mtx.unlock();
+	// replace tilde with user's home directory
+	if (res.at(0) == '~') {
+		struct passwd * pw = getpwuid(getuid());
+		res = std::string(pw->pw_dir) + res.substr(1, res.length() - 1);
+	}
 
-	if (!exists) {
-		std::string err = "NOFILE\n";
-		crypt(err);
-		send(this->sock, err.c_str(), err.length(), 0);
+	std::cout << res << '\n';
+	if (!std::filesystem::exists(res)) {
+		std::string err = "NOFILE";
+		s_send(err);
 		return false;
 	}
 
-	struct stat path;
-	stat(res.substr(res.find(" ") + 1, res.length() - res.find(" ")).c_str(), &path);
-	bool is_not_dir = S_ISREG(path.st_mode);	
-
-	// directory stuff here
+	if (std::filesystem::is_directory(res)) {
+		// directory stuff here
+	} else {
+		std::string file_info = "IS_DIR FALSE ";
+		file_info += std::to_string(std::filesystem::file_size(res));
+		s_send(file_info);	
+	}
 
 	return true;
 }
@@ -103,8 +105,12 @@ start_thread_dispatch() {
 
 }
 
+std::string Servicer::
+s_recv() {
+	return recv_str(sock, key);
+}
+
 void Servicer::
-crypt(std::string & str) {
-	for (auto & c : str)
-		c = c ^ this->key;
+s_send(std::string & str) {
+	send_str(sock, str, key);
 }

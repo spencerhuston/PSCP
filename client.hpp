@@ -28,34 +28,41 @@
 
 int sock;
 std::mutex mtx;
+uint16_t key;
+
+void print(const std::string & str);
 
 void * get_in_addr(struct sockaddr * sa);
 void bind_socket(std::string & host_name);
+
 uint16_t parse_key(const std::string & authreq);
-std::string recv_str(int & sock);
+
+std::string recv(const int & sock);
+std::string recv_str(const int & sock);
+void send_str(const int & sock, std::string & str);
+void crypt_pscp(std::string & str);
 
 class Client {
 	private:
 		const std::string file_name;
 		const int thread_num;
-		const uint16_t key;
 		int serv_port;
 		std::string header;
 		bool is_dir;
 
-		// file_name, start_byte, chunk_size
-		std::vector<std::pair<std::string, std::pair<int, int>>> thread_info;
+		struct thread_info {
+			std::string file_name;
+			int start_byte, chunk_size;
+		};
+		std::vector<std::vector<thread_info>> thread_assignments;
 
-		bool authenticate();
-		void assign_threads();
+		std::vector<std::string> authenticate();
+		void assign_threads(const std::vector<std::string> & file_info);
 		void request_copy();
 		const std::string make_header();
 		void spawn_threads();
-		void copy_file();
-		
-		void crypt(std::string & str);
-		void print(const std::string & str);
+		void copy_file();		
 
 	public:
-		Client(std::string & file_name, int & thread_num, uint16_t & key);
+		Client(std::string & file_name, int & thread_num);
 };

@@ -1,14 +1,14 @@
 #include "client.hpp"
 
 Client::
-Client(std::string & file_name, int & thread_num, uint16_t & key) :
-file_name(file_name), thread_num(thread_num), key(key) {
-	if (authenticate()) {
-			
-	}
+Client(std::string & file_name, int & thread_num) :
+file_name(file_name), thread_num(thread_num) {
+	assign_threads(authenticate());
 }
 
-bool Client::
+// gives error and exits if bad login or file does not exist
+// else returns list of file info
+std::vector<std::string> Client::
 authenticate() {
 	std::string username, password;
 
@@ -23,34 +23,39 @@ authenticate() {
 	res += " PASS ";
 	res += password;
 
-	crypt(res);
-	send(sock, res.c_str(), res.length(), 0);
+	send_str(sock, res);
 
 	res = recv_str(sock);
-	crypt(res);
-	if (res != "VALID") 
-		return false;
+	if (res != "VALID") {
+		std::cout << "Bad login\n";
+		exit(0);
+	}
 
 	res = "FILENAME ";
 	res += this->file_name;
 
-	crypt(res);
-	send(sock, res.c_str(), res.length(), 0);
-	
+	send_str(sock, res);
 	res = recv_str(sock);
-	crypt(res);
 
 	if (res == "NOFILE") {
 		std::cout << "File does not exist or you do not have access to it\n";
 		exit(0);
 	}
 
-	std::cout << res << '\n';
+	std::istringstream res_ss(res);
+	std::vector<std::string> file_info((std::istream_iterator<std::string>(res_ss)),
+			std::istream_iterator<std::string>());
+
+	return file_info;
 }
 
 void Client::
-assign_threads() {
+assign_threads(const std::vector<std::string> & file_info) {
+	if (file_info.at(1) == "FALSE") { // regular file
+		
+	} else { // directory
 
+	}	
 }
 
 void Client::
@@ -71,18 +76,6 @@ spawn_threads() {
 void Client::
 copy_file() {
 	
-}
-
-void Client::
-crypt(std::string & str) {
-	for (auto & c : str)
-		c = c ^ this->key;	
-}
-
-void print(const std::string & str) {
-	mtx.lock();
-	std::cout << str << '\n';
-	mtx.unlock();
 }
 
 void * 
@@ -147,7 +140,7 @@ parse_key(const std::string & authreq) {
 }
 
 std::string
-recv_str(int & sock) {
+recv(const int & sock) {
 	char recv_buff[MAXDATA];
 	int byte_num;
 	if ((byte_num = recv(sock, recv_buff, MAXDATA - 1, 0)) == -1) {
@@ -157,6 +150,32 @@ recv_str(int & sock) {
 	recv_buff[byte_num] = '\0';
 
 	return std::string(recv_buff);
+}
+
+std::string
+recv_str(const int & sock) {
+	std::string str = recv(sock);
+	crypt_pscp(str);
+	return str;
+}
+
+void
+send_str(const int & sock, std::string & str) {
+	crypt_pscp(str);
+	send(sock, str.c_str(), str.length(), 0);
+}
+
+void
+crypt_pscp(std::string & str) {
+	for (auto & c : str)
+		c = c ^ key;	
+}
+
+void 
+print(const std::string & str) {
+	mtx.lock();
+	std::cout << str << '\n';
+	mtx.unlock();
 }
 
 int 
@@ -189,16 +208,15 @@ main(int argc, char ** argv) {
 	std::cout << "Connection made\n";
 
 	// receive authentication request and XOR key
-	std::string recv_buff = recv_str(sock);	
+	std::string recv_buff = recv(sock);	
 
 	// construct client object to take over the rest of the process
 	int thread_num = atoi(argv[1]);
-	uint16_t key = parse_key(std::string(recv_buff));
+	key = parse_key(std::string(recv_buff));
 	
 	std::unique_ptr<Client> client(new Client(
 					file_name,
-					thread_num, 
-					key));  
+					thread_num));  
 
 	close(sock);
 
