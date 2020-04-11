@@ -27,6 +27,7 @@
 #define MAXDATA 1024
 
 int sock;
+std::mutex mtx;
 
 void * get_in_addr(struct sockaddr * sa);
 void bind_socket(std::string & host_name);
@@ -51,8 +52,8 @@ class Client {
 		void spawn_threads();
 		void copy_file();
 		
-		void encrypt(std::string & str);
-		void decrypt(std::string & str);
+		void crypt(std::string & str);
+		void print(const std::string & str);
 
 	public:
 		Client(std::string & file_name, int & thread_num, uint16_t & key);

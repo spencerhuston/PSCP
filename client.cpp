@@ -23,7 +23,7 @@ authenticate() {
 	res += " PASS ";
 	res += password;
 	
-	encrypt(res);
+	crypt(res);
 	send(sock, res.c_str(), res.length(), 0);	
 }
 
@@ -52,17 +52,16 @@ copy_file() {
 	
 }
 
-// split functions to avoid overlap between threads
 void Client::
-encrypt(std::string & str) {
+crypt(std::string & str) {
 	for (auto & c : str)
 		c = c ^ this->key;	
 }
 
-void Client::
-decrypt(std::string & str) {
-	for (auto & c : str)
-		c = c ^ this->key;
+void print(const std::string & str) {
+	mtx.lock();
+	std::cout << str << '\n';
+	mtx.unlock();
 }
 
 void * 
