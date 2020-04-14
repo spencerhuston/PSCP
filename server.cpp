@@ -15,9 +15,7 @@ get_host_info() {
 	char host_buff[256];
 	char *ip_buff;
 	struct hostent * host_ent;
-	int host_name;
 
-	host_name = gethostname(host_buff, 256);
 	host_ent = gethostbyname(host_buff);
 	ip_buff = inet_ntoa(*((struct in_addr *)host_ent->h_addr_list[0]));
 	
@@ -34,7 +32,6 @@ void handler(int s) {
 
 void bind_socket() {
 	struct addrinfo hints, *serv_info, *p;
-	char s[INET6_ADDRSTRLEN];
 	int res, yes = 1;
 
 	memset(&hints, 0, sizeof(hints));

@@ -14,7 +14,6 @@ class Servicer {
 		void service();
 		bool authenticate_user();
 		bool check_file_dir();
-		void send_file_info(const std::string & fp);
 		void get_header();
 		void start_thread_dispatch();
 

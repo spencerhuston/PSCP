@@ -14,10 +14,12 @@
 #include <atomic>
 #include <mutex>
 
+#include <random>
 #include <memory>
 #include <vector>
 #include <sstream>
 #include <iterator>
+#include <algorithm>
 
 	// file I/O
 #include <iostream>
@@ -25,6 +27,7 @@
 
 #define PORT 8000
 #define MAXDATA 1024
+#define HEADER_SIZE 32
 
 int sock;
 std::mutex mtx;
@@ -45,7 +48,7 @@ void crypt_pscp(std::string & str);
 class Client {
 	private:
 		const std::string file_name;
-		const int thread_num;
+		int thread_num;
 		int serv_port;
 		std::string header;
 		bool is_dir;
@@ -59,7 +62,7 @@ class Client {
 		std::vector<std::string> authenticate();
 		void assign_threads(const std::vector<std::string> & file_info);
 		void request_copy();
-		const std::string make_header();
+		void make_header();
 		void spawn_threads();
 		void copy_file();		
 

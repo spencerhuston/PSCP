@@ -32,6 +32,7 @@
 #include <iterator>
 #include <cstdint>
 #include <sys/stat.h>
+#include <algorithm>
 
 #define MAXDATA 1024
 
@@ -62,8 +63,8 @@ class Dispatcher {
 		Dispatcher(const std::string & file_name,
 			   const std::string & header,
 			   int & sock,
-			   int & port, 
 			   int & chunk_size, 
+			   int & port, 
 			   uint16_t & key, 
 			   char & start_byte);
 };

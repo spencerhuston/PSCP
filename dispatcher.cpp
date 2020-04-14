@@ -8,7 +8,7 @@ recv(const int & sock) {
 		perror("recv");
 		return "";
 	}
-	recv_buff[MAXDATA] = '\0';
+	recv_buff[byte_num] = '\0';
 
 	return std::string(recv_buff);
 }
@@ -16,31 +16,27 @@ recv(const int & sock) {
 std::string
 recv_str(const int & sock, const uint16_t & key) {
 	std::string res = recv(sock);
-	crypt_pscp(res, key);
+	std::transform(res.begin(), res.end(), res.begin(), 
+			[&key](char c) { return c ^ key; });  
 	return res;
 }
 
 void
 send_str(const int & sock, std::string & str, const uint16_t & key) {
-	crypt_pscp(str, key);
+	std::transform(str.begin(), str.end(), str.begin(), 
+			[&key](char c) { return c ^ key; });  
 	send(sock, str.c_str(), str.length(), 0);
-}
-
-void 
-crypt_pscp(std::string & str, const uint16_t & key) {
-	for (auto & c : str)
-		c = c ^ key;	
 }
 
 Dispatcher::
 Dispatcher(const std::string & file_name, const std::string & header,
-	   int & sock, int & port, int & chunk_size, uint16_t & key, char & start_byte) : 
-file_name(file_name), header(header), sock(sock), port(port),
-chunk_size(chunk_size), key(key), start_byte(start_byte) {
+	   int & sock, int & chunk_size, int & port, uint16_t & key, char & start_byte) : 
+file_name(file_name), header(header), sock(sock), chunk_size(chunk_size),
+port(port), key(key), start_byte(start_byte) {
 	std::string constructor_str = "Processing " + file_name + " for session " + header;
 	print(constructor_str);
 
-	this->send_file_data();
+	send_file_data();
 }
 
 // copy files over connection

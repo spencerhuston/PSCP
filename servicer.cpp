@@ -31,6 +31,7 @@ service() {
 		return;
 
 	// continue here after file info processed
+	get_header();
 }
 
 // request client for username and password and check credentials
@@ -85,12 +86,6 @@ check_file_dir() {
 	}
 
 	return true;
-}
-
-// send file info to client to process 
-void Servicer:: 
-send_file_info(const std::string & fp) {
-
 }
 
 // accept session header info from client and give OK to send threads for copy

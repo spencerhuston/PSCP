@@ -4,6 +4,9 @@ Client::
 Client(std::string & file_name, int & thread_num) :
 file_name(file_name), thread_num(thread_num) {
 	assign_threads(authenticate());
+
+	make_header();
+	request_copy();
 }
 
 // gives error and exits if bad login or file does not exist
@@ -32,7 +35,9 @@ authenticate() {
 	}
 
 	res = "FILENAME ";
-	res += this->file_name;
+	res += file_name;
+
+	std::cout << res << '\n';
 
 	send_str(sock, res);
 	res = recv_str(sock);
@@ -52,7 +57,23 @@ authenticate() {
 void Client::
 assign_threads(const std::vector<std::string> & file_info) {
 	if (file_info.at(1) == "FALSE") { // regular file
+		int file_size = atoi(file_info.at(2).c_str());
+		if (file_size < thread_num)
+			thread_num = 5; // play around with #'s to find optimal assignment
 		
+		int split = file_size / thread_num;
+		for (int byte = 0; byte < thread_num * split; byte += split) {
+			struct thread_info info;
+			info.file_name = file_name;
+			info.start_byte = byte;
+			info.chunk_size = split;
+			std::vector<thread_info> single_file_assignment;
+			single_file_assignment.push_back(info);
+			thread_assignments.push_back(single_file_assignment);
+		}
+	
+		// if remainder exists, add to last thread (always a small #)	
+		thread_assignments.back().front().chunk_size += file_size % thread_num;
 	} else { // directory
 
 	}	
@@ -63,9 +84,15 @@ request_copy() {
 
 }
 
-const std::string Client::
+void Client::
 make_header() {
+	std::random_device rd;
+	std::mt19937 generator(rd());
+	std::uniform_int_distribution<> dist(0, 255);
 
+	header = "";
+	for (int i = 0; i < HEADER_SIZE; ++i)
+		header += (char)dist(generator);
 }
 
 void Client::
@@ -87,7 +114,6 @@ get_in_addr(struct sockaddr * sa) {
 
 void 
 bind_socket(std::string & host_name) {
-	char s[INET6_ADDRSTRLEN];
 	struct addrinfo hints, *serv_info, *p;
 	int res;
 	
@@ -155,20 +181,16 @@ recv(const int & sock) {
 std::string
 recv_str(const int & sock) {
 	std::string str = recv(sock);
-	crypt_pscp(str);
+	std::transform(str.begin(), str.end(), str.begin(),
+			[](char c) { return c ^ key; });
 	return str;
 }
 
 void
 send_str(const int & sock, std::string & str) {
-	crypt_pscp(str);
+	std::transform(str.begin(), str.end(), str.begin(),
+			[](char c) { return c ^ key; });
 	send(sock, str.c_str(), str.length(), 0);
-}
-
-void
-crypt_pscp(std::string & str) {
-	for (auto & c : str)
-		c = c ^ key;	
 }
 
 void 
