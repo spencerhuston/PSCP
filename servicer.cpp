@@ -79,6 +79,31 @@ check_file_dir() {
 
 	if (std::filesystem::is_directory(res)) {
 		// directory stuff here
+		/*namespace fs = std::filesystem;
+
+		std::string dir_info = "IS_DIR TRUE ";
+		std::string dir_info_files = "";
+		std::vector<std::string> vec_dir_subFiles;
+		std::vector<int> vec_dir_subFilesSize;
+
+		for (auto& path: fs::recursive_directory_iterator(res)){
+			vec_dir_subFiles.push_back(path.path());		//rename auto& path var
+			vec_dir_subFilesSize.push_back(file_size(path));//make sure it shouldn't be path.path()
+		}
+		for (int i = 0; i < vec_dir_subFiles.size(); i++){
+			dir_info_files += vec_dir_subFiles.at(i) + " ";
+			dir_info_files += vec_dir_subFilesSize.at(i) + " ";
+		}
+		if (!dir_info_files.empty()){	//remove last space from dir_info_files
+			dir_info_files.pop_back();
+		}
+		//add character count at the end of dir_info string
+		int byte_num = dir_info_files.size();
+		dir_info += std::to_string(byte_num) + " ";
+		dir_info += dir_info_files;
+
+		s_send(dir_info);*/
+		
 	} else {
 		std::string file_info = "IS_DIR FALSE ";
 		file_info += std::to_string(std::filesystem::file_size(res));

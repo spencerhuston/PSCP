@@ -75,7 +75,18 @@ assign_threads(const std::vector<std::string> & file_info) {
 		// if remainder exists, add to last thread (always a small #)	
 		thread_assignments.back().front().chunk_size += file_size % thread_num;
 	} else { // directory
+		/*int dir_size = atoi(file_info.at(2).c_str());
+		//get contents of dir, put in vector
+		
+		//if conent member is dir, expand and put all sub contents in vector too
 
+		//loop through vector and assign one thread per content member
+
+		//test:
+		for (int i = 0; i < file_info.size(); i++) {
+			std::cout << file_info.at(i) << ' ';
+		}
+		std::cout << "\n";*/
 	}	
 }
 
