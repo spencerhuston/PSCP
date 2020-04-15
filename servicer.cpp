@@ -30,7 +30,6 @@ service() {
 	if (!authenticate_user() || !check_file_dir())
 		return;
 
-	// continue here after file info processed
 	get_header();
 	std::thread dispatch_thread(&Servicer::start_thread_dispatch, *this);
 		
@@ -145,9 +144,44 @@ start_thread_dispatch() {
 			continue;
 		}
 
-		// launch dispatcher thread here
-		// read info in from client
+		std::string res = recv_str(client_sock, key);
+		if (res != dispatch_header) {
+			res = "Bad header, thread spawn";
+			print(res);
+			res = "NO";
+			send_str(client_sock, res, key);
+			close(client_sock);
+			continue;
+		}
+		res = "OK";
+		send_str(client_sock, res, key);
+		res = recv_str(client_sock, key);
+
+		std::istringstream res_ss(res);
+		std::vector<std::string> res_toks((std::istream_iterator<std::string>(res_ss)),
+						std::istream_iterator<std::string>());
+
+		if (res_toks.at(0) == "DONE")
+			break;
+
+		std::string file_name = res_toks.at(0);
+		int chunk_size = atoi(res_toks.at(1).c_str());
+		int start_byte = atoi(res_toks.at(2).c_str());
+		uint16_t d_key = key;
+
+		auto dis = new Dispatcher(file_name, client_sock, chunk_size, d_key, start_byte);
+
+		std::thread copy_thread([]
+				(std::string file_name, int chunk_size, 
+				 int c_sock, uint16_t key, int start_byte) {
+					std::unique_ptr<Dispatcher> dis(new Dispatcher(file_name, 
+										        chunk_size, 
+										      	c_sock,
+											key, 
+											start_byte));
+				}, file_name, chunk_size, client_sock, key, start_byte);
 		
+		copy_thread.detach();
 	}		
 }
 

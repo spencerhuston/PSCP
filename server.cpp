@@ -112,7 +112,6 @@ main(int argc, char ** argv) {
 			continue;
 		}	
 
-		// add port # to this	
 		std::thread service([](int & sock){
 				std::unique_ptr<Servicer> servicer(new Servicer(sock));
 			}, std::ref(client_sock));

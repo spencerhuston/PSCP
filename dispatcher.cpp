@@ -29,20 +29,19 @@ send_str(const int & sock, std::string & str, const uint16_t & key) {
 }
 
 Dispatcher::
-Dispatcher(const std::string & file_name, const std::string & header,
-	   int & sock, int & chunk_size, int & port, uint16_t & key, char & start_byte) : 
-file_name(file_name), header(header), sock(sock), chunk_size(chunk_size),
-port(port), key(key), start_byte(start_byte) {
-	std::string constructor_str = "Processing " + file_name + " for session " + header;
-	print(constructor_str);
-
+Dispatcher(const std::string & file_name, int & sock, 
+	   int & chunk_size, uint16_t & key, int & start_byte) : 
+file_name(file_name), sock(sock), chunk_size(chunk_size),
+key(key), start_byte(start_byte) {
 	send_file_data();
+
+	close(sock);
 }
 
 // copy files over connection
 void Dispatcher::
 send_file_data() {
-
+	
 }
 
 std::string Dispatcher::

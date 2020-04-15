@@ -51,10 +51,10 @@ void send_str(const int & sock, std::string & str, const uint16_t & key);
 
 class Dispatcher {
 	private:
-		const std::string file_name, header;
-		const int sock, chunk_size, port;
+		const std::string file_name;
+		const int sock, chunk_size;
 		const uint16_t key;
-		const char start_byte;
+		const int start_byte;
 		
 		void send_file_data();
 
@@ -63,10 +63,8 @@ class Dispatcher {
 
 	public:
 		Dispatcher(const std::string & file_name,
-			   const std::string & header,
 			   int & sock,
 			   int & chunk_size, 
-			   int & port, 
 			   uint16_t & key, 
-			   char & start_byte);
+			   int & start_byte);
 };
