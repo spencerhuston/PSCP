@@ -6,7 +6,12 @@ file_name(file_name), thread_num(thread_num) {
 	assign_threads(authenticate());
 
 	make_header();
-	request_copy();
+	if (request_copy()) 
+		spawn_threads();
+	else {
+		std::cout << "Bad copy request\n";
+		exit(1);
+	}
 }
 
 // gives error and exits if bad login or file does not exist
@@ -79,25 +84,39 @@ assign_threads(const std::vector<std::string> & file_info) {
 	}	
 }
 
-void Client::
+bool Client::
 request_copy() {
+	std::string req = "REQ ";
+	req += header;
+	req += " ";
+	req += std::to_string(thread_num);
 
+	send_str(sock, req);
+	req = recv_str(sock);
+
+	if (req.substr(0, 2) == "OK") {
+		serv_port = atoi(req.substr(3, req.length() - 3).c_str());	
+		return true;
+	}
+	return false;
 }
 
 void Client::
 make_header() {
+	const std::string CHARS = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
+
 	std::random_device rd;
 	std::mt19937 generator(rd());
-	std::uniform_int_distribution<> dist(0, 255);
+	std::uniform_int_distribution<> dist(0, CHARS.length());
 
 	header = "";
 	for (int i = 0; i < HEADER_SIZE; ++i)
-		header += (char)dist(generator);
+		header += CHARS[dist(generator)];
 }
 
 void Client::
 spawn_threads() {
-
+	
 }
 
 void Client::

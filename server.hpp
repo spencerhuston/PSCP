@@ -39,5 +39,5 @@ uint16_t make_rand();
 void handler(int s);
 
 std::pair<std::string, std::string> get_host_info();
-void bind_socket();
+void bind_socket(int & sock, int port);
 

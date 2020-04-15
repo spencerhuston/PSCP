@@ -61,7 +61,7 @@ class Client {
 
 		std::vector<std::string> authenticate();
 		void assign_threads(const std::vector<std::string> & file_info);
-		void request_copy();
+		bool request_copy();
 		void make_header();
 		void spawn_threads();
 		void copy_file();		

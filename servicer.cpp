@@ -32,6 +32,9 @@ service() {
 
 	// continue here after file info processed
 	get_header();
+	std::thread dispatch_thread(&Servicer::start_thread_dispatch, *this);
+		
+	dispatch_thread.join();
 }
 
 // request client for username and password and check credentials
@@ -91,13 +94,61 @@ check_file_dir() {
 // accept session header info from client and give OK to send threads for copy
 void Servicer::
 get_header() {
+	std::string req = s_recv();
+	
+	std::istringstream req_ss(req);
+	std::vector<std::string> req_toks((std::istream_iterator<std::string>(req_ss)),
+			std::istream_iterator<std::string>());
 
+	if (req_toks.at(0) == "REQ") {
+		dispatch_header = req_toks.at(1);
+		thread_num = atoi(req_toks.at(2).c_str());
+	}
 }
 
 // begin thread dispatch loop to accept connections
 void Servicer::
 start_thread_dispatch() {
+	int dispatch_sock, client_sock;
+	socklen_t sin_size;
+	struct sockaddr_storage client_addr;
 
+	bind_socket(dispatch_sock, -1);
+
+	if (listen(dispatch_sock, thread_num)) {
+		perror("Servicer listen");
+		return;
+	};	
+	
+	std::string ok = "OK";
+
+	struct sockaddr_in sin;
+	socklen_t len = sizeof(sin);
+	int port = -1;
+	if (getsockname(dispatch_sock, (struct sockaddr *)&sin, &len) == -1) {
+		perror("Port value, service()");
+		return;
+	} else
+		port = ntohs(sin.sin_port);
+
+	ok += " ";
+	ok += std::to_string(port);
+	s_send(ok);
+
+	while (true) {
+		sin_size = sizeof(client_addr);
+		client_sock = accept(dispatch_sock,
+				(struct sockaddr *)&client_addr, &sin_size);
+
+		if (client_sock == -1) {
+			perror("Dispatch thread accept");
+			continue;
+		}
+
+		// launch dispatcher thread here
+		// read info in from client
+		
+	}		
 }
 
 std::string Servicer::

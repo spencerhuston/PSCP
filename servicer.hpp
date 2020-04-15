@@ -8,6 +8,7 @@ uint16_t make_rand();
 class Servicer {
 	private:
 		std::string dispatch_header;
+		int thread_num;
 		const int sock, serv_num;
 		const uint16_t key;
 		
