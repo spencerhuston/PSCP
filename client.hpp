@@ -32,11 +32,12 @@
 int sock;
 std::mutex mtx;
 uint16_t key;
+std::string host_name;
 
 void print(const std::string & str);
 
 void * get_in_addr(struct sockaddr * sa);
-void bind_socket(std::string & host_name);
+void bind_socket(std::string & host_name, int & client_sock, int port);
 
 uint16_t parse_key(const std::string & authreq);
 
@@ -48,8 +49,7 @@ void crypt_pscp(std::string & str);
 class Client {
 	private:
 		const std::string file_name;
-		int thread_num;
-		int serv_port;
+		int thread_num, serv_port, file_size;
 		std::string header;
 		bool is_dir;
 
@@ -61,10 +61,11 @@ class Client {
 
 		std::vector<std::string> authenticate();
 		void assign_threads(const std::vector<std::string> & file_info);
-		void request_copy();
+		bool request_copy();
 		void make_header();
 		void spawn_threads();
-		void copy_file();		
+		void copy_file(const std::vector<struct thread_info> assignment,
+				std::string & file);		
 
 	public:
 		Client(std::string & file_name, int & thread_num);

@@ -6,7 +6,12 @@ file_name(file_name), thread_num(thread_num) {
 	assign_threads(authenticate());
 
 	make_header();
-	request_copy();
+	if (request_copy()) 
+		spawn_threads();
+	else {
+		std::cout << "Bad copy request\n";
+		exit(1);
+	}
 }
 
 // gives error and exits if bad login or file does not exist
@@ -56,8 +61,9 @@ authenticate() {
 
 void Client::
 assign_threads(const std::vector<std::string> & file_info) {
+	
 	if (file_info.at(1) == "FALSE") { // regular file
-		int file_size = atoi(file_info.at(2).c_str());
+		file_size = atoi(file_info.at(2).c_str());
 		if (file_size < thread_num)
 			thread_num = 5; // play around with #'s to find optimal assignment
 		
@@ -75,45 +81,127 @@ assign_threads(const std::vector<std::string> & file_info) {
 		// if remainder exists, add to last thread (always a small #)	
 		thread_assignments.back().front().chunk_size += file_size % thread_num;
 	} else { // directory
-		/*int dir_size = atoi(file_info.at(2).c_str());
-		//get contents of dir, put in vector
-		
-		//if conent member is dir, expand and put all sub contents in vector too
-
-		//loop through vector and assign one thread per content member
-
-		//test:
+		file_size = atoi(file_info.at(2).c_str());	//byte_num for receiving string
+		std::cout << "file_info = ";
 		for (int i = 0; i < file_info.size(); i++) {
 			std::cout << file_info.at(i) << ' ';
 		}
-		std::cout << "\n";*/
-	}	
+		std::cout << "\n";
+
+		char recv_buff[file_size + 1];		// will contain all files and file sizes
+		int byte_num;
+		if ((byte_num = recv(sock, recv_buff, file_size, 0)) == -1) {
+			perror("recv");
+			exit(1);
+		}
+		recv_buff[byte_num] = '\0';
+		std::string recv_buff_string = recv_buff;	//so that we can use std::transform
+
+		std::transform(recv_buff_string.begin(), recv_buff_string.end(), recv_buff_string.begin(),
+			[](char c) { return c ^ key; });
+
+		std::cout << "recv_buff = " << recv_buff_string;
+		std::cout << "\n";
+
+		//segment recv buffer into a vector with all tokens
+		std::stringstream res_ss(recv_buff_string);
+		std::vector<std::string> file_tokens((std::istream_iterator<std::string>(res_ss)),
+				 std::istream_iterator<std::string>());
+		
+		std::cout << "file_tokens = ";
+		for (int i = 0; i < file_tokens.size(); i++) {
+			std::cout << file_tokens.at(i) << ' ';
+		}
+		std::cout << "\n";
+		
+		for (int i = 0; i < file_tokens.size(); i += 2){
+			//file size if i + 1;
+			struct thread_info info;
+			info.file_name = file_info.at(i);
+			info.start_byte = 0;
+			info.chunk_size = stoi(file_info.at(i + 1));	//chunk size is full file size
+			std::vector<thread_info> full_file_assignment;
+			full_file_assignment.push_back(info);
+			thread_assignments.push_back(full_file_assignment);
+		}
+	}
 }
 
-void Client::
+bool Client::
 request_copy() {
+	std::string req = "REQ ";
+	req += header;
+	req += " ";
+	req += std::to_string(thread_num);
 
+	send_str(sock, req);
+	req = recv_str(sock);
+
+	if (req.substr(0, 2) == "OK") {
+		serv_port = atoi(req.substr(3, req.length() - 3).c_str());	
+		return true;
+	}
+	return false;
 }
 
 void Client::
 make_header() {
+	const std::string CHARS = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
+
 	std::random_device rd;
 	std::mt19937 generator(rd());
-	std::uniform_int_distribution<> dist(0, 255);
+	std::uniform_int_distribution<> dist(0, CHARS.length() - 1);
 
 	header = "";
 	for (int i = 0; i < HEADER_SIZE; ++i)
-		header += (char)dist(generator);
+		header += CHARS[dist(generator)];
 }
 
 void Client::
 spawn_threads() {
+	std::string file;
+	if (!is_dir)
+		file.reserve(file_size);
 
+	std::vector<std::thread> copy_threads;
+	for (auto & v : thread_assignments) {
+		std::thread copy_thread(&Client::copy_file, *this, v, std::ref(file));
+		copy_threads.push_back(std::move(copy_thread));
+	}	
+
+	for (auto & t : copy_threads)
+		t.join();
+
+	if (!is_dir) {
+		// write string to file
+	}
 }
 
 void Client::
-copy_file() {
+copy_file(std::vector<struct thread_info> assignment, std::string & file) {
+	int client_sock;
+	bind_socket(host_name, client_sock, serv_port);
+
+	for (auto & v : assignment) {
+		send_str(client_sock, header);	
+		std::string res = recv_str(client_sock);	
+		
+		if (res != "OK") {
+			print("Bad header, copy file");
+			return;
+		}
+
+		std::string req = v.file_name;
+		req += " ";
+		req += std::to_string(v.chunk_size);
+		req += " ";
+		req += std::to_string(v.start_byte);
+
+		send_str(client_sock, req);
+	}
 	
+	std::string done = "DONE";
+	send_str(client_sock, done);	
 }
 
 void * 
@@ -124,7 +212,7 @@ get_in_addr(struct sockaddr * sa) {
 }
 
 void 
-bind_socket(std::string & host_name) {
+bind_socket(std::string & host_name, int & client_sock, int port) {
 	struct addrinfo hints, *serv_info, *p;
 	int res;
 	
@@ -133,19 +221,19 @@ bind_socket(std::string & host_name) {
 	hints.ai_socktype = SOCK_STREAM;
 	hints.ai_protocol = IPPROTO_TCP;
 
-	if ((res = getaddrinfo(host_name.c_str(), std::to_string(PORT).c_str(), &hints, &serv_info)) != 0) {
+	if ((res = getaddrinfo(host_name.c_str(), std::to_string(port).c_str(), &hints, &serv_info)) != 0) {
 		fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(res));
 		exit(1);
 	}
 
 	for (p = serv_info; p != NULL; p = p->ai_next) {
-		if ((sock = socket(p->ai_family, p->ai_socktype, p->ai_protocol)) < 0) {
+		if ((client_sock = socket(p->ai_family, p->ai_socktype, p->ai_protocol)) < 0) {
 			perror("Socket init error");
 			continue;
 		}
 
-		if (connect(sock, p->ai_addr, (socklen_t)p->ai_addrlen) < 0) {
-			close(sock);
+		if (connect(client_sock, p->ai_addr, (socklen_t)p->ai_addrlen) < 0) {
+			close(client_sock);
 			perror("Socket connect error");
 			sock = -1;
 			continue;
@@ -233,10 +321,10 @@ main(int argc, char ** argv) {
 		exit(1);
 	}
 	
-	std::string host_name = host_file.substr(0, colon);
+	host_name = host_file.substr(0, colon);
 	std::string file_name = host_file.substr(colon + 1, host_file.length() - colon);
 
-	bind_socket(host_name);
+	bind_socket(host_name, sock, PORT);
 
 	std::cout << "Connection made\n";
 

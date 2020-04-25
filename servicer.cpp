@@ -30,8 +30,10 @@ service() {
 	if (!authenticate_user() || !check_file_dir())
 		return;
 
-	// continue here after file info processed
 	get_header();
+	std::thread dispatch_thread(&Servicer::start_thread_dispatch, *this);
+		
+	dispatch_thread.join();
 }
 
 // request client for username and password and check credentials
@@ -79,31 +81,22 @@ check_file_dir() {
 
 	if (std::filesystem::is_directory(res)) {
 		// directory stuff here
-		/*namespace fs = std::filesystem;
+		namespace fs = std::filesystem;
 
 		std::string dir_info = "IS_DIR TRUE ";
-		std::string dir_info_files = "";
-		std::vector<std::string> vec_dir_subFiles;
-		std::vector<int> vec_dir_subFilesSize;
-
-		for (auto& path: fs::recursive_directory_iterator(res)){
-			vec_dir_subFiles.push_back(path.path());		//rename auto& path var
-			vec_dir_subFilesSize.push_back(file_size(path));//make sure it shouldn't be path.path()
-		}
-		for (int i = 0; i < vec_dir_subFiles.size(); i++){
-			dir_info_files += vec_dir_subFiles.at(i) + " ";
-			dir_info_files += vec_dir_subFilesSize.at(i) + " ";
-		}
-		if (!dir_info_files.empty()){	//remove last space from dir_info_files
-			dir_info_files.pop_back();
-		}
-		//add character count at the end of dir_info string
+		
+		std::string dir_info_files = iterate_directory(res);
+		
 		int byte_num = dir_info_files.size();
 		dir_info += std::to_string(byte_num) + " ";
-		dir_info += dir_info_files;
+		std::cout << "dir_info = " + dir_info;
+		s_send(dir_info);
+		std::cout << std::endl;
 
-		s_send(dir_info);*/
-		
+		dir_info = dir_info_files;
+		std::cout << "dir_info = " + dir_info;
+		std::cout << std::endl;
+		s_send(dir_info);
 	} else {
 		std::string file_info = "IS_DIR FALSE ";
 		file_info += std::to_string(std::filesystem::file_size(res));
@@ -113,16 +106,129 @@ check_file_dir() {
 	return true;
 }
 
+std::string Servicer::
+iterate_directory(const std::filesystem::path& dir) {
+	std::string returnString;
+	namespace fs = std::filesystem;
+
+	std::vector<std::string> vec_dir_subFiles;
+	std::vector<std::string> vec_dir_subFilesSize;
+
+	for (auto& path: fs::recursive_directory_iterator(dir)){
+		if (fs::is_directory(path)){
+			returnString += path.path();
+			returnString += "/ FI ";
+			iterate_directory(path);
+		}else{
+			vec_dir_subFiles.push_back(path.path());
+			std::uintmax_t subFileSize = std::filesystem::file_size(path.path());
+			vec_dir_subFilesSize.push_back(std::to_string(subFileSize));
+		}
+	}
+	for (int i = 0; i < vec_dir_subFiles.size(); i++){
+		returnString += vec_dir_subFiles.at(i) + " ";
+		returnString += vec_dir_subFilesSize.at(i) + " ";
+	}
+	if (!returnString.empty()){	//remove last space from dir_info_files
+		returnString.pop_back();
+	}
+
+	return returnString;
+}
+
 // accept session header info from client and give OK to send threads for copy
 void Servicer::
 get_header() {
+	std::string req = s_recv();
+	
+	std::istringstream req_ss(req);
+	std::vector<std::string> req_toks((std::istream_iterator<std::string>(req_ss)),
+			std::istream_iterator<std::string>());
 
+	if (req_toks.at(0) == "REQ") {
+		dispatch_header = req_toks.at(1);
+		thread_num = atoi(req_toks.at(2).c_str());
+	}
 }
 
 // begin thread dispatch loop to accept connections
 void Servicer::
 start_thread_dispatch() {
+	int dispatch_sock, client_sock;
+	socklen_t sin_size;
+	struct sockaddr_storage client_addr;
 
+	bind_socket(dispatch_sock, -1);
+
+	if (listen(dispatch_sock, thread_num)) {
+		perror("Servicer listen");
+		return;
+	};	
+	
+	std::string ok = "OK";
+
+	struct sockaddr_in sin;
+	socklen_t len = sizeof(sin);
+	int port = -1;
+	if (getsockname(dispatch_sock, (struct sockaddr *)&sin, &len) == -1) {
+		perror("Port value, service()");
+		return;
+	} else
+		port = ntohs(sin.sin_port);
+
+	ok += " ";
+	ok += std::to_string(port);
+	s_send(ok);
+
+	while (true) {
+		sin_size = sizeof(client_addr);
+		client_sock = accept(dispatch_sock,
+				(struct sockaddr *)&client_addr, &sin_size);
+
+		if (client_sock == -1) {
+			perror("Dispatch thread accept");
+			continue;
+		}
+
+		std::string res = recv_str(client_sock, key);
+		if (res != dispatch_header) {
+			res = "Bad header, thread spawn";
+			print(res);
+			res = "NO";
+			send_str(client_sock, res, key);
+			close(client_sock);
+			continue;
+		}
+		res = "OK";
+		send_str(client_sock, res, key);
+		res = recv_str(client_sock, key);
+
+		std::istringstream res_ss(res);
+		std::vector<std::string> res_toks((std::istream_iterator<std::string>(res_ss)),
+						std::istream_iterator<std::string>());
+
+		if (res_toks.at(0) == "DONE")
+			break;
+
+		std::string file_name = res_toks.at(0);
+		int chunk_size = atoi(res_toks.at(1).c_str());
+		int start_byte = atoi(res_toks.at(2).c_str());
+		uint16_t d_key = key;
+
+		auto dis = new Dispatcher(file_name, client_sock, chunk_size, d_key, start_byte);
+
+		std::thread copy_thread([]
+				(std::string file_name, int chunk_size, 
+				 int c_sock, uint16_t key, int start_byte) {
+					std::unique_ptr<Dispatcher> dis(new Dispatcher(file_name, 
+										        chunk_size, 
+										      	c_sock,
+											key, 
+											start_byte));
+				}, file_name, chunk_size, client_sock, key, start_byte);
+		
+		copy_thread.detach();
+	}		
 }
 
 std::string Servicer::

@@ -36,23 +36,25 @@
 
 #define MAXDATA 1024
 
+// Defined in server.hpp
+/*====================================*/
 extern std::mutex mtx;
 extern std::atomic<int> servicer_num;
+
+void print(const std::string & str);
+void bind_socket(int & sock, int port);
+/*====================================*/
 
 std::string recv(const int & sock);
 std::string recv_str(const int & sock, const uint16_t & key);
 void send_str(const int & sock, std::string & str, const uint16_t & key);
 
-void crypt_pscp(std::string & str, const uint16_t & key);
-
-void print(const std::string & str);
-
 class Dispatcher {
 	private:
-		const std::string file_name, header;
-		const int sock, chunk_size, port;
+		const std::string file_name;
+		const int sock, chunk_size;
 		const uint16_t key;
-		const char start_byte;
+		const int start_byte;
 		
 		void send_file_data();
 
@@ -61,10 +63,8 @@ class Dispatcher {
 
 	public:
 		Dispatcher(const std::string & file_name,
-			   const std::string & header,
 			   int & sock,
 			   int & chunk_size, 
-			   int & port, 
 			   uint16_t & key, 
-			   char & start_byte);
+			   int & start_byte);
 };

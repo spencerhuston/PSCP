@@ -16,6 +16,8 @@ get_host_info() {
 	char *ip_buff;
 	struct hostent * host_ent;
 
+	gethostname(host_buff, 256);
+
 	host_ent = gethostbyname(host_buff);
 	ip_buff = inet_ntoa(*((struct in_addr *)host_ent->h_addr_list[0]));
 	
@@ -30,7 +32,7 @@ void handler(int s) {
 	exit(0);
 }
 
-void bind_socket() {
+void bind_socket(int & sock, int port) {
 	struct addrinfo hints, *serv_info, *p;
 	int res, yes = 1;
 
@@ -40,13 +42,16 @@ void bind_socket() {
 	hints.ai_flags = AI_PASSIVE;
 	hints.ai_protocol = IPPROTO_TCP;
 
-	if ((res = getaddrinfo(NULL, std::to_string(PORT).c_str(), &hints, &serv_info)) != 0) {
+	const char * port_str = (port == -1) ? NULL : std::to_string(port).c_str();
+	const char * host_str = (port == -1) ? get_host_info().first.c_str() : NULL;
+	
+	if ((res = getaddrinfo(host_str, port_str, &hints, &serv_info)) != 0) {
 		fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(res));
 		exit(1);
-	}
+	}	
 
 	for (p = serv_info; p != NULL; p = p->ai_next) {
-		if ((server_sock = socket(p->ai_family, p->ai_socktype, p->ai_protocol)) == -1) {
+		if ((sock = socket(p->ai_family, p->ai_socktype, p->ai_protocol)) == -1) {
 			perror("Socket init");
 			continue;
 		}	
@@ -56,7 +61,7 @@ void bind_socket() {
 			continue;
 		}
 
-		if (bind(server_sock, p->ai_addr, p->ai_addrlen) == -1) {
+		if (bind(sock, p->ai_addr, p->ai_addrlen) == -1) {
 			close(server_sock);
 			perror("socket bind");
 			continue;
@@ -79,7 +84,7 @@ main(int argc, char ** argv) {
 	socklen_t sin_size;
 	struct sockaddr_storage client_addr;
 	
-	bind_socket();
+	bind_socket(server_sock, PORT);
 
 	if (listen(server_sock, MAX_CLIENTS)) {
 		perror("Listen");
@@ -106,7 +111,7 @@ main(int argc, char ** argv) {
 			perror("Client accept");
 			continue;
 		}	
-	
+
 		std::thread service([](int & sock){
 				std::unique_ptr<Servicer> servicer(new Servicer(sock));
 			}, std::ref(client_sock));

@@ -8,6 +8,7 @@ uint16_t make_rand();
 class Servicer {
 	private:
 		std::string dispatch_header;
+		int thread_num;
 		const int sock, serv_num;
 		const uint16_t key;
 		
@@ -16,6 +17,8 @@ class Servicer {
 		bool check_file_dir();
 		void get_header();
 		void start_thread_dispatch();
+
+		std::string iterate_directory(const std::filesystem::path& p);
 
 		std::string s_recv();
 		void s_send(std::string & str);
