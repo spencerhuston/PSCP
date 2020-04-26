@@ -115,14 +115,17 @@ assign_threads(const std::vector<std::string> & file_info) {
 		std::cout << "\n";
 		
 		for (int i = 0; i < file_tokens.size(); i += 2){
-			//file size if i + 1;
-			struct thread_info info;
-			info.file_name = file_info.at(i);
-			info.start_byte = 0;
-			info.chunk_size = stoi(file_info.at(i + 1));	//chunk size is full file size
-			std::vector<thread_info> full_file_assignment;
-			full_file_assignment.push_back(info);
-			thread_assignments.push_back(full_file_assignment);
+			if (file_tokens.at(i + 1) == "FI"){
+				//make that directory so that the "else" portion can 
+			}else{
+				struct thread_info info;
+				info.file_name = file_tokens.at(i);
+				info.start_byte = 0;
+				info.chunk_size = stoi(file_tokens.at(i + 1));	//chunk size is full file size
+				std::vector<thread_info> full_file_assignment;
+				full_file_assignment.push_back(info);
+				thread_assignments.push_back(full_file_assignment);
+			}
 		}
 	}
 }
