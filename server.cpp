@@ -40,7 +40,6 @@ void bind_socket(int & sock, int port) {
 	hints.ai_family = AF_UNSPEC;
 	hints.ai_socktype = SOCK_STREAM;
 	hints.ai_flags = AI_PASSIVE;
-	hints.ai_protocol = IPPROTO_TCP;
 
 	const char * port_str = (port == -1) ? NULL : std::to_string(port).c_str();
 	const char * host_str = (port == -1) ? get_host_info().first.c_str() : NULL;
@@ -91,10 +90,17 @@ main(int argc, char ** argv) {
 		exit(1);
 	}
 
-	std::cout << "Listening for connections\n";
+	std::cout << "Listening for connections\n\n";
 	auto host_info = get_host_info();
 	std::cout << "Server name: " << host_info.first << '\n';
 	std::cout << "Server IP: " << host_info.second << '\n';
+
+	std::cout << "\nMain socket: " << server_sock << '\n';
+
+	struct sockaddr_in port_sin;
+	socklen_t port_len = sizeof(port_sin);
+	getsockname(server_sock, (struct sockaddr *)&port_sin, &port_len);
+	std::cout << std::to_string(ntohs(port_sin.sin_port)) << '\n';
 
 	struct sigaction kill_handler;
 	kill_handler.sa_handler = handler;
@@ -111,7 +117,7 @@ main(int argc, char ** argv) {
 			perror("Client accept");
 			continue;
 		}	
-
+		
 		std::thread service([](int & sock){
 				std::unique_ptr<Servicer> servicer(new Servicer(sock));
 			}, std::ref(client_sock));

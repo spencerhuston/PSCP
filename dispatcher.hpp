@@ -43,6 +43,7 @@ extern std::atomic<int> servicer_num;
 
 void print(const std::string & str);
 void bind_socket(int & sock, int port);
+std::pair<std::string, std::string> get_host_info();
 /*====================================*/
 
 std::string recv(const int & sock);
@@ -51,20 +52,16 @@ void send_str(const int & sock, std::string & str, const uint16_t & key);
 
 class Dispatcher {
 	private:
-		const std::string file_name;
-		const int sock, chunk_size;
+		const int sock;
 		const uint16_t key;
-		const int start_byte;
 		
-		void send_file_data();
+		void send_file_data(const std::string & file_name,
+				    const int & start_byte,
+				    const int & chunk_size);
 
 		std::string d_recv();
 		void d_send(std::string & str);
 
 	public:
-		Dispatcher(const std::string & file_name,
-			   int & sock,
-			   int & chunk_size, 
-			   uint16_t & key, 
-			   int & start_byte);
+		Dispatcher(int & sock, uint16_t & key);
 };
