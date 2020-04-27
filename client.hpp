@@ -20,6 +20,7 @@
 #include <sstream>
 #include <iterator>
 #include <algorithm>
+#include <chrono>
 
 	// file I/O
 #include <iostream>
@@ -34,6 +35,8 @@ std::mutex mtx;
 uint16_t key;
 std::string host_name;
 std::string local_path;
+
+std::chrono::high_resolution_clock::time_point start, end;
 
 void print(const std::string & str);
 
@@ -53,7 +56,7 @@ class Client {
 		int thread_num, serv_port, file_size;
 		std::string header, host_ip;
 		bool is_dir;
-		char * file_buffer;
+		unsigned char * file_buffer;
 
 		struct thread_info {
 			std::string file_name;

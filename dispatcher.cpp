@@ -36,7 +36,7 @@ Dispatcher(int & sock, uint16_t & key) : sock(sock), key(key) {
 		std::vector<std::string> req_toks((std::istream_iterator<std::string>(req_ss)),
 							std::istream_iterator<std::string>());
 
-		if (req_toks.at(0) == "DONE") 
+		if (req_toks.empty() || req_toks.at(0) == "DONE") 
 			break;
 
 		std::string file_name = req_toks.at(0);
@@ -57,19 +57,21 @@ Dispatcher(int & sock, uint16_t & key) : sock(sock), key(key) {
 // copy files over connection
 void Dispatcher::
 send_file_data(const std::string & file_name, const int & start_byte, const int & chunk_size) {	
+	unsigned char copy_buffer[chunk_size + 1];
+	
 	std::ifstream file(file_name, std::ifstream::binary);
-	char copy_buffer[chunk_size + 1];
-	
 	file.seekg(start_byte);
-	file.read(copy_buffer, chunk_size);
+	int start = file.tellg();
+	file.read((char *)&copy_buffer[0], chunk_size);
+	int end = file.tellg();
 	file.close();
-	
-	copy_buffer[chunk_size] = '\0';
-	
-	std::string info = std::string(copy_buffer);
-	//print(info);
 
-	d_send(info);
+	//printf("%s", copy_buffer);
+
+	for (int i = 0; i < chunk_size; ++i)
+		copy_buffer[i] = copy_buffer[i] ^ key;
+
+	send(sock, copy_buffer, chunk_size, 0);
 }
 
 std::string Dispatcher::

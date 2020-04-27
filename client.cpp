@@ -32,6 +32,7 @@ authenticate() {
 	res += " PASS ";
 	res += password;
 
+	start = std::chrono::high_resolution_clock::now();
 	send_str(sock, res);
 	std::cout << "To server: " << res << '\n';
 
@@ -68,7 +69,7 @@ assign_threads(const std::vector<std::string> & file_info) {
 	if (file_info.at(1) == "FALSE") { // regular file
 		file_size = atoi(file_info.at(2).c_str());
 		
-		file_buffer = (char *)malloc(file_size + 1);
+		file_buffer = (unsigned char *)malloc(file_size + 1);
 		memset(file_buffer, 0, file_size + 1);
 
 		//if (file_size < thread_num)
@@ -151,10 +152,12 @@ spawn_threads() {
 		local_file_name = local_path + local_file_name; 
 		std::cout << local_file_name << '\n';
 
-		std::ofstream copied_file(local_file_name, std::ofstream::binary);
+		std::ofstream copied_file(local_file_name, std::ofstream::binary |
+							   std::ofstream::trunc);
 		
 		if (copied_file.is_open()) {
-			copied_file.write(file_buffer, file_size);
+			//printf("%s\n", file_buffer);
+			copied_file.write((char *)&file_buffer[0], file_size);
 			copied_file.close();
 		} else {
 			std::cout << "Could not open file\n";
@@ -191,23 +194,28 @@ copy_file(std::vector<struct thread_info> assignment) {
 
 		send_str(client_sock, req);
 
-		char recv_buff[v.chunk_size + 1];
-		int byte_num;
-		if ((byte_num = recv(client_sock, recv_buff, v.chunk_size, 0)) == -1) {
-			perror("recv");
-			exit(1);
-		}
-		recv_buff[v.chunk_size] = '\0';
+		unsigned char recv_buff[v.chunk_size];
+		int byte_num = recv(client_sock, recv_buff, v.chunk_size, 0);
 
-		std::string info = std::string(recv_buff);
-		std::transform(info.begin(), info.end(), info.begin(),
-			[](char c) { return c ^ key; });
+		while (byte_num != v.chunk_size) {
+			int diff = v.chunk_size - byte_num;
+			int old_num = byte_num;
+
+			unsigned char temp_buff[diff];
+			byte_num += recv(client_sock, temp_buff, diff, 0);
+			
+			for (int i = old_num; i < old_num + diff; ++i)
+				recv_buff[i] = temp_buff[i - old_num];
+		}
 		
-		//std::cout << info << '\n';
-	
+		for (int i = 0; i < v.chunk_size; ++i)
+			recv_buff[i] = recv_buff[i] ^ key;
+
+		//printf("%s", recv_buff);
+
 		if (!is_dir)
 			for (int i = v.start_byte; i < v.start_byte + v.chunk_size; ++i)
-				file_buffer[i] = info[i - v.start_byte];
+				file_buffer[i] = recv_buff[i - v.start_byte];
 		else {
 			// write entire file
 		}
@@ -243,7 +251,7 @@ bind_socket(std::string & host_name, int & client_sock, int port) {
 			perror("Socket init error");
 			continue;
 		}
-		std::cout << "Client sock: " << client_sock << '\n';
+		
 		if (connect(client_sock, p->ai_addr, p->ai_addrlen) == -1) {
 			close(client_sock);
 			perror("client sock connect");
@@ -361,6 +369,12 @@ main(int argc, char ** argv) {
 					thread_num));  
 
 	close(sock);
+
+	end = std::chrono::high_resolution_clock::now();
+	
+	auto span = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+
+	std::cout << "Time: " << span.count() << " μs\n";
 
 	return 0;
 }
