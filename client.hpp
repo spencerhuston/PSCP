@@ -33,11 +33,12 @@ int sock;
 std::mutex mtx;
 uint16_t key;
 std::string host_name;
+std::string local_path;
 
 void print(const std::string & str);
 
 void * get_in_addr(struct sockaddr * sa);
-void bind_socket(std::string & host_name, int & client_sock, int port);
+bool bind_socket(std::string & host_name, int & client_sock, int port);
 
 uint16_t parse_key(const std::string & authreq);
 
@@ -50,8 +51,9 @@ class Client {
 	private:
 		const std::string file_name;
 		int thread_num, serv_port, file_size;
-		std::string header;
+		std::string header, host_ip;
 		bool is_dir;
+		char * file_buffer;
 
 		struct thread_info {
 			std::string file_name;
@@ -64,8 +66,7 @@ class Client {
 		bool request_copy();
 		void make_header();
 		void spawn_threads();
-		void copy_file(const std::vector<struct thread_info> assignment,
-				std::string & file);		
+		void copy_file(const std::vector<struct thread_info> assignment);
 
 	public:
 		Client(std::string & file_name, int & thread_num);
