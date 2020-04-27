@@ -194,18 +194,26 @@ copy_file(std::vector<struct thread_info> assignment) {
 
 		send_str(client_sock, req);
 
-		unsigned char recv_buff[v.chunk_size];
+		unsigned char * recv_buff;
+		recv_buff = (unsigned char *)malloc(v.chunk_size);
+		memset(recv_buff, 0, v.chunk_size);
+
 		int byte_num = recv(client_sock, recv_buff, v.chunk_size, 0);
 
 		while (byte_num != v.chunk_size) {
 			int diff = v.chunk_size - byte_num;
 			int old_num = byte_num;
 
-			unsigned char temp_buff[diff];
+			unsigned char * temp_buff;
+			temp_buff = (unsigned char *)malloc(diff);
+			memset(temp_buff, 0, diff);
+
 			byte_num += recv(client_sock, temp_buff, diff, 0);
 			
 			for (int i = old_num; i < old_num + diff; ++i)
 				recv_buff[i] = temp_buff[i - old_num];
+
+			free(temp_buff);
 		}
 		
 		for (int i = 0; i < v.chunk_size; ++i)
@@ -219,8 +227,10 @@ copy_file(std::vector<struct thread_info> assignment) {
 		else {
 			// write entire file
 		}
+
+		free(recv_buff);
 	}
-	
+
 	std::string done = "DONE";
 	send_str(client_sock, done);	
 }

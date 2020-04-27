@@ -50,28 +50,41 @@ Dispatcher(int & sock, uint16_t & key) : sock(sock), key(key) {
 		send_file_data(file_name, start_byte, chunk_size);
 	}
 	close(sock);
-	std::string msg = "dispatcher done";
-	print(msg);
 }
 
 // copy files over connection
 void Dispatcher::
 send_file_data(const std::string & file_name, const int & start_byte, const int & chunk_size) {	
-	unsigned char copy_buffer[chunk_size + 1];
-	
-	std::ifstream file(file_name, std::ifstream::binary);
-	file.seekg(start_byte);
-	int start = file.tellg();
-	file.read((char *)&copy_buffer[0], chunk_size);
-	int end = file.tellg();
-	file.close();
+	unsigned char * copy_buffer;
+	copy_buffer = (unsigned char *)malloc(chunk_size);
+	memset(copy_buffer, 0, chunk_size);
 
+	//std::ifstream file(file_name, std::ifstream::binary);
+	FILE * file = NULL;
+	file = fopen(file_name.c_str(), "rb");
+
+	if (file) {
+		/*
+		file.seekg(start_byte);
+		file.read((char *)&copy_buffer[0], chunk_size);
+		file.close();*/
+
+		fseek(file, start_byte, SEEK_SET);
+		size_t res = fread(copy_buffer, 1, chunk_size, file);
+		fclose(file);
+	} else {
+		std::string err = "Could not open file\n";
+		print(err);
+		return;
+	}
+	
 	//printf("%s", copy_buffer);
 
 	for (int i = 0; i < chunk_size; ++i)
 		copy_buffer[i] = copy_buffer[i] ^ key;
 
 	send(sock, copy_buffer, chunk_size, 0);
+	free(copy_buffer);
 }
 
 std::string Dispatcher::
