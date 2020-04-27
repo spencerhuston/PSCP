@@ -121,7 +121,7 @@ iterate_directory(const std::filesystem::path& dir) {
 			iterate_directory(path);
 		}else{
 			vec_dir_subFiles.push_back(path.path());
-			std::uintmax_t subFileSize = std::filesystem::file_size(path.path());
+			std::uintmax_t subFileSize = fs::file_size(path);
 			vec_dir_subFilesSize.push_back(std::to_string(subFileSize));
 		}
 	}

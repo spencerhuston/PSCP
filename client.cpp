@@ -114,9 +114,22 @@ assign_threads(const std::vector<std::string> & file_info) {
 		}
 		std::cout << "\n";
 		
+		//make directory (that would also contain files and sub-directories)
+		namespace fs = std::filesystem;
+
+		if (fs::exists(file_name)) {
+      		std:: cout << "Unable to copy as directory of that name already exists\n";
+			return;
+		}
+		
+		fs::create_directory(file_name);
+		std::cout << "dir name: " << file_name << "\n";
+
 		for (int i = 0; i < file_tokens.size(); i += 2){
 			if (file_tokens.at(i + 1) == "FI"){
-				//make that directory so that the "else" portion can 
+				//make that directory
+				//fs::path subdirPath = file_tokens.at(i);
+				fs::create_directory(file_tokens.at(i));
 			}else{
 				struct thread_info info;
 				info.file_name = file_tokens.at(i);
