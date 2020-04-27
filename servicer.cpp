@@ -17,6 +17,8 @@ sock(sock), serv_num(servicer_num++), key(make_rand()) {
 	constructor_str += std::to_string(serv_num);
 	constructor_str += " with key ";
 	constructor_str += std::to_string(key);
+	constructor_str += ", socket ";
+	constructor_str += std::to_string(sock);
 
 	print(constructor_str);
 
@@ -31,9 +33,7 @@ service() {
 		return;
 
 	get_header();
-	std::thread dispatch_thread(&Servicer::start_thread_dispatch, *this);
-		
-	dispatch_thread.join();
+	start_thread_dispatch();
 }
 
 // request client for username and password and check credentials
@@ -43,9 +43,21 @@ authenticate_user() {
 	std::string authreq_key = "AUTHREQ KEY ";
 	authreq_key += std::to_string(key);
 
+	std::string msg = "\n";
+	print(msg);
+	msg = "authenticate_user()";
+	print(msg);
+	msg = "To client: ";
+	msg += authreq_key;
+	print(msg);
+
 	send(sock, authreq_key.c_str(), authreq_key.length(), 0);
 
 	std::string res = s_recv();
+
+	print(res);
+	msg = "\n\n";
+	print(msg);
 
 	std::istringstream res_ss(res);
 	std::vector<std::string> res_toks((std::istream_iterator<std::string>(res_ss)),
@@ -60,10 +72,14 @@ authenticate_user() {
 // check if file or directory exists
 bool Servicer::
 check_file_dir() {
+	std::string msg = "\n\ncheck_file_dir()";
+	print(msg);
+
 	std::string res = "VALID";
 	s_send(res);
 
 	res = s_recv();
+	print(res);
 	res = res.substr(res.find(" ") + 1, res.length() - res.find(" "));
 
 	// replace tilde with user's home directory
@@ -100,7 +116,12 @@ check_file_dir() {
 	} else {
 		std::string file_info = "IS_DIR FALSE ";
 		file_info += std::to_string(std::filesystem::file_size(res));
-		s_send(file_info);	
+		
+		msg = "To client: ";
+		msg += file_info;
+		print(msg);
+			
+		s_send(file_info);
 	}
 
 	return true;
@@ -140,7 +161,11 @@ iterate_directory(const std::filesystem::path& dir) {
 void Servicer::
 get_header() {
 	std::string req = s_recv();
-	
+
+	std::string msg = "get_header()";
+	print(msg);	
+	print(req);
+
 	std::istringstream req_ss(req);
 	std::vector<std::string> req_toks((std::istream_iterator<std::string>(req_ss)),
 			std::istream_iterator<std::string>());
@@ -154,6 +179,9 @@ get_header() {
 // begin thread dispatch loop to accept connections
 void Servicer::
 start_thread_dispatch() {
+	std::string msg = "\n\nstart_thread_dispatch()";
+	print(msg);
+	
 	int dispatch_sock, client_sock;
 	socklen_t sin_size;
 	struct sockaddr_storage client_addr;
@@ -164,22 +192,31 @@ start_thread_dispatch() {
 		perror("Servicer listen");
 		return;
 	};	
-	
+
+	msg = "Dispatch sock: ";
+	msg += std::to_string(dispatch_sock);
+	print(msg);
+
 	std::string ok = "OK";
+	s_send(ok);
 
 	struct sockaddr_in sin;
 	socklen_t len = sizeof(sin);
-	int port = -1;
+	std::string host_port;
 	if (getsockname(dispatch_sock, (struct sockaddr *)&sin, &len) == -1) {
 		perror("Port value, service()");
 		return;
 	} else
-		port = ntohs(sin.sin_port);
+		host_port = std::to_string(ntohs(sin.sin_port));
+	
+	host_port += " ";
+	host_port += get_host_info().second;
 
-	ok += " ";
-	ok += std::to_string(port);
-	s_send(ok);
+	print(host_port);
 
+	s_send(host_port);
+
+	int num_accepted = 0;
 	while (true) {
 		sin_size = sizeof(client_addr);
 		client_sock = accept(dispatch_sock,
@@ -201,34 +238,18 @@ start_thread_dispatch() {
 		}
 		res = "OK";
 		send_str(client_sock, res, key);
-		res = recv_str(client_sock, key);
 
-		std::istringstream res_ss(res);
-		std::vector<std::string> res_toks((std::istream_iterator<std::string>(res_ss)),
-						std::istream_iterator<std::string>());
-
-		if (res_toks.at(0) == "DONE")
-			break;
-
-		std::string file_name = res_toks.at(0);
-		int chunk_size = atoi(res_toks.at(1).c_str());
-		int start_byte = atoi(res_toks.at(2).c_str());
-		uint16_t d_key = key;
-
-		auto dis = new Dispatcher(file_name, client_sock, chunk_size, d_key, start_byte);
-
-		std::thread copy_thread([]
-				(std::string file_name, int chunk_size, 
-				 int c_sock, uint16_t key, int start_byte) {
-					std::unique_ptr<Dispatcher> dis(new Dispatcher(file_name, 
-										        chunk_size, 
-										      	c_sock,
-											key, 
-											start_byte));
-				}, file_name, chunk_size, client_sock, key, start_byte);
+		std::thread copy_thread([] (int c_sock, uint16_t key) {
+				std::unique_ptr<Dispatcher> dis(new Dispatcher(c_sock, key));
+			}, client_sock, key);
 		
 		copy_thread.detach();
-	}		
+
+		if (++num_accepted == thread_num)
+			break;
+	}
+	msg = "servicer done";
+	print(msg);
 }
 
 std::string Servicer::

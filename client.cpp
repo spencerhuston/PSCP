@@ -10,6 +10,7 @@ file_name(file_name), thread_num(thread_num) {
 		spawn_threads();
 	else {
 		std::cout << "Bad copy request\n";
+		close(sock);
 		exit(1);
 	}
 }
@@ -32,10 +33,12 @@ authenticate() {
 	res += password;
 
 	send_str(sock, res);
+	std::cout << "To server: " << res << '\n';
 
 	res = recv_str(sock);
 	if (res != "VALID") {
 		std::cout << "Bad login\n";
+		close(sock);
 		exit(0);
 	}
 
@@ -49,6 +52,7 @@ authenticate() {
 
 	if (res == "NOFILE") {
 		std::cout << "File does not exist or you do not have access to it\n";
+		close(sock);	
 		exit(0);
 	}
 
@@ -61,11 +65,14 @@ authenticate() {
 
 void Client::
 assign_threads(const std::vector<std::string> & file_info) {
-	
 	if (file_info.at(1) == "FALSE") { // regular file
 		file_size = atoi(file_info.at(2).c_str());
-		if (file_size < thread_num)
-			thread_num = 5; // play around with #'s to find optimal assignment
+		
+		file_buffer = (char *)malloc(file_size + 1);
+		memset(file_buffer, 0, file_size + 1);
+
+		//if (file_size < thread_num)
+		//	thread_num = 5; // play around with #'s to find optimal assignment
 		
 		int split = file_size / thread_num;
 		for (int byte = 0; byte < thread_num * split; byte += split) {
@@ -80,7 +87,7 @@ assign_threads(const std::vector<std::string> & file_info) {
 	
 		// if remainder exists, add to last thread (always a small #)	
 		thread_assignments.back().front().chunk_size += file_size % thread_num;
-	} else { // directory
+	} else { // directory	
 		file_size = atoi(file_info.at(2).c_str());	//byte_num for receiving string
 		std::cout << "file_info = ";
 		for (int i = 0; i < file_info.size(); i++) {
@@ -140,7 +147,7 @@ assign_threads(const std::vector<std::string> & file_info) {
 				thread_assignments.push_back(full_file_assignment);
 			}
 		}
-	}
+	}	
 }
 
 bool Client::
@@ -153,8 +160,17 @@ request_copy() {
 	send_str(sock, req);
 	req = recv_str(sock);
 
-	if (req.substr(0, 2) == "OK") {
-		serv_port = atoi(req.substr(3, req.length() - 3).c_str());	
+	if (req == "OK") {
+		req = recv_str(sock);
+		std::istringstream req_ss(req);
+		std::vector<std::string> host_info((std::istream_iterator<std::string>(req_ss)),
+							std::istream_iterator<std::string>());
+
+		serv_port = atoi(host_info.at(0).c_str());	
+		host_ip = host_info.at(1);
+		std::cout << "serv port: " << std::to_string(serv_port) << '\n';
+		std::cout << "serv ip: " << host_ip << '\n';
+
 		return true;
 	}
 	return false;
@@ -175,13 +191,9 @@ make_header() {
 
 void Client::
 spawn_threads() {
-	std::string file;
-	if (!is_dir)
-		file.reserve(file_size);
-
 	std::vector<std::thread> copy_threads;
 	for (auto & v : thread_assignments) {
-		std::thread copy_thread(&Client::copy_file, *this, v, std::ref(file));
+		std::thread copy_thread(&Client::copy_file, *this, v);
 		copy_threads.push_back(std::move(copy_thread));
 	}	
 
@@ -189,24 +201,46 @@ spawn_threads() {
 		t.join();
 
 	if (!is_dir) {
-		// write string to file
+		file_buffer[file_size] = '\0';	
+
+		std::string local_file_name = file_name;
+		if (local_file_name.find("/") != std::string::npos)
+			local_file_name = local_file_name.substr(local_file_name.find_last_of("/") + 1); 
+		local_file_name = local_path + local_file_name; 
+		std::cout << local_file_name << '\n';
+
+		std::ofstream copied_file(local_file_name, std::ofstream::binary);
+		
+		if (copied_file.is_open()) {
+			copied_file.write(file_buffer, file_size);
+			copied_file.close();
+		} else {
+			std::cout << "Could not open file\n";
+			exit(1);
+		}
+
+		free(file_buffer);
 	}
 }
 
 void Client::
-copy_file(std::vector<struct thread_info> assignment, std::string & file) {
+copy_file(std::vector<struct thread_info> assignment) {
 	int client_sock;
-	bind_socket(host_name, client_sock, serv_port);
+
+	if (!bind_socket(host_ip, client_sock, serv_port)) {
+		close(sock);	
+		exit(1);
+	}
+	
+	send_str(client_sock, header);	
+	std::string res = recv_str(client_sock);	
+	
+	if (res != "OK") {
+		print("Bad header, copy file");
+		return;
+	}
 
 	for (auto & v : assignment) {
-		send_str(client_sock, header);	
-		std::string res = recv_str(client_sock);	
-		
-		if (res != "OK") {
-			print("Bad header, copy file");
-			return;
-		}
-
 		std::string req = v.file_name;
 		req += " ";
 		req += std::to_string(v.chunk_size);
@@ -214,6 +248,27 @@ copy_file(std::vector<struct thread_info> assignment, std::string & file) {
 		req += std::to_string(v.start_byte);
 
 		send_str(client_sock, req);
+
+		char recv_buff[v.chunk_size + 1];
+		int byte_num;
+		if ((byte_num = recv(client_sock, recv_buff, v.chunk_size, 0)) == -1) {
+			perror("recv");
+			exit(1);
+		}
+		recv_buff[v.chunk_size] = '\0';
+
+		std::string info = std::string(recv_buff);
+		std::transform(info.begin(), info.end(), info.begin(),
+			[](char c) { return c ^ key; });
+		
+		//std::cout << info << '\n';
+	
+		if (!is_dir)
+			for (int i = v.start_byte; i < v.start_byte + v.chunk_size; ++i)
+				file_buffer[i] = info[i - v.start_byte];
+		else {
+			// write entire file
+		}
 	}
 	
 	std::string done = "DONE";
@@ -227,7 +282,7 @@ get_in_addr(struct sockaddr * sa) {
 	return &(((struct sockaddr_in6 *)sa)->sin6_addr);
 }
 
-void 
+bool 
 bind_socket(std::string & host_name, int & client_sock, int port) {
 	struct addrinfo hints, *serv_info, *p;
 	int res;
@@ -235,7 +290,6 @@ bind_socket(std::string & host_name, int & client_sock, int port) {
 	memset(&hints, 0, sizeof(hints));
 	hints.ai_family = AF_UNSPEC;
 	hints.ai_socktype = SOCK_STREAM;
-	hints.ai_protocol = IPPROTO_TCP;
 
 	if ((res = getaddrinfo(host_name.c_str(), std::to_string(port).c_str(), &hints, &serv_info)) != 0) {
 		fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(res));
@@ -247,10 +301,10 @@ bind_socket(std::string & host_name, int & client_sock, int port) {
 			perror("Socket init error");
 			continue;
 		}
-
-		if (connect(client_sock, p->ai_addr, (socklen_t)p->ai_addrlen) < 0) {
+		std::cout << "Client sock: " << client_sock << '\n';
+		if (connect(client_sock, p->ai_addr, p->ai_addrlen) == -1) {
 			close(client_sock);
-			perror("Socket connect error");
+			perror("client sock connect");
 			sock = -1;
 			continue;
 		}
@@ -260,10 +314,11 @@ bind_socket(std::string & host_name, int & client_sock, int port) {
 
 	freeaddrinfo(serv_info);
 	
-	if (p == NULL || sock < 0) {
+	if (p == NULL) {
 		std::cerr << "Failed to connect\n";
-		exit(2);
+		return false;
 	}
+	return true;
 }
 
 uint16_t
@@ -274,6 +329,7 @@ parse_key(const std::string & authreq) {
 
 	if (req_toks.at(0) != "AUTHREQ") {
 		std::cout << "Bad request\n";
+		close(sock);	
 		exit(3);
 	}
 
@@ -323,8 +379,8 @@ main(int argc, char ** argv) {
 	for (auto i = num.begin(); i != num.end(); ++i)
 		is_num &= isdigit(*i);
 
-	if (argc < 3 || !is_num) {
-		std::cout << "Usage: pscp thread_num host:file_name\n";
+	if (argc < 4 || !is_num) {
+		std::cout << "Usage: pscp thread_num host:file_name local_path\n";
 		exit(1);
 	}	
 	
@@ -333,24 +389,31 @@ main(int argc, char ** argv) {
 	std::size_t colon = host_file.find(":");
 	
 	if (colon == std::string::npos) {
-		std::cout << "Usage: pscp thread_num host:file_name\n";
+		std::cout << "Usage: pscp thread_num host:file_name local_path\n";
 		exit(1);
 	}
-	
+
+	local_path = std::string(argv[3]);
+
 	host_name = host_file.substr(0, colon);
 	std::string file_name = host_file.substr(colon + 1, host_file.length() - colon);
 
-	bind_socket(host_name, sock, PORT);
+	if (!bind_socket(host_name, sock, PORT)) {
+		exit(1);
+	}
 
 	std::cout << "Connection made\n";
+	std::cout << "Socket: " << std::to_string(sock) << '\n';
 
 	// receive authentication request and XOR key
 	std::string recv_buff = recv(sock);	
+	std::cout << recv_buff << '\n';
 
 	// construct client object to take over the rest of the process
 	int thread_num = atoi(argv[1]);
 	key = parse_key(std::string(recv_buff));
-	
+	std::cout << std::to_string(key) << '\n';
+
 	std::unique_ptr<Client> client(new Client(
 					file_name,
 					thread_num));  
