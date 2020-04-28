@@ -107,7 +107,6 @@ check_file_dir() {
 		
 		int byte_num = dir_info_files.size();
 		dir_info += std::to_string(byte_num);
-		std::cout << "dir_info = " + dir_info;
 		s_send(dir_info);
 		std::cout << std::endl;
 		
@@ -115,7 +114,6 @@ check_file_dir() {
 		home_dir = std::string(pw->pw_dir);
 		
 		dir_info = dir_info_files;
-		std::cout << "dir_info = " + dir_info;
 		std::cout << std::endl;
 		s_send(dir_info);
 	} else {

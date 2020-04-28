@@ -93,7 +93,10 @@ assign_threads(const std::vector<std::string> & file_info) {
 
 		is_dir = true;
 
-		char recv_buff[file_size + 1];		// will contain all files and file sizes
+		char * recv_buff;
+		recv_buff = (char *)malloc(file_size + 1);
+		memset(recv_buff, 0, file_size + 1);
+
 		int byte_num;
 		if ((byte_num = recv(sock, recv_buff, file_size, 0)) == -1) {
 			perror("recv");
@@ -101,6 +104,7 @@ assign_threads(const std::vector<std::string> & file_info) {
 		}
 		recv_buff[byte_num] = '\0';
 		std::string recv_buff_string = recv_buff;	//so that we can use std::transform
+		free(recv_buff);
 
 		std::transform(recv_buff_string.begin(), recv_buff_string.end(), 
 			       recv_buff_string.begin(),
@@ -108,10 +112,32 @@ assign_threads(const std::vector<std::string> & file_info) {
 
 
 		//segment recv buffer into a vector with all tokens
-		std::stringstream res_ss(recv_buff_string);
-		std::vector<std::string> file_tokens((std::istream_iterator<std::string>(res_ss)),
-				 std::istream_iterator<std::string>());
+		//std::stringstream res_ss(recv_buff_string);
+		//std::vector<std::string> file_tokens((std::istream_iterator<std::string>(res_ss)),
+		//		 std::istream_iterator<std::string>());
+
+		std::vector<std::string> file_tokens;	
+		for (unsigned int i = 0; i < recv_buff_string.length(); ++i) {
+			std::string temp = "";
+			for ( ; i < recv_buff_string.length() && recv_buff_string.at(i) != ' '; ++i)
+				temp += recv_buff_string.at(i);
 		
+			auto is_num = [](std::string num) -> bool {	
+				bool isnum = true;
+				for (auto j = num.begin(); j != num.end(); ++j)
+					isnum &= isdigit(*j);
+				
+				return isnum;
+			};
+
+			if (!is_num(temp) && (file_tokens.size() > 0) && 
+			    !is_num(file_tokens.at(file_tokens.size() - 1)) && 
+			   (temp != "FI") && (file_tokens.at(file_tokens.size() - 1) != "FI"))
+				file_tokens.at(i - 1) += std::string(" ") + temp;
+			else
+				file_tokens.push_back(temp);
+		}
+
 		//make directory (that would also contain files and sub-directories)
 		namespace fs = std::filesystem;
 
@@ -129,15 +155,16 @@ assign_threads(const std::vector<std::string> & file_info) {
 		
 		fs::create_directory(file_name);
 
-		int split = file_tokens.size() / 2 / thread_num;
-		for (unsigned int i = 0; i < file_tokens.size(); i += 2) {
-			std::vector<thread_info> full_file_assignment;
-		
-			if (file_tokens.at(i + 1) == "FI") {
-				//make that directory
-				//fs::path subdirPath = file_tokens.at(i);
-				std::cout << file_tokens.at(i) << '\n';
+		int file_start = 0;
+		for (unsigned int i = 0; i < file_tokens.size(); ++i)
+			if (file_tokens.at(i) == "FI")
+				file_start = i;
 
+		int split = (file_tokens.size() - file_start - 1) / 2 / thread_num;
+		std::vector<thread_info> full_file_assignment;
+		
+		for (unsigned int i = 0; i < file_tokens.size(); i += 2) {
+			if (file_tokens.at(i + 1) == "FI") {
 				std::string file = file_tokens.at(i);
 				file = file.substr(file.find(file_name.substr(file_name.find(local_path) + local_path.length())));
 				fs::create_directory(local_path + file);
@@ -145,6 +172,7 @@ assign_threads(const std::vector<std::string> & file_info) {
 				struct thread_info info;
 				info.file_name = file_tokens.at(i);
 				info.start_byte = 0;
+
 				info.chunk_size = stoi(file_tokens.at(i + 1));	//chunk size is full file size
 				full_file_assignment.push_back(info);
 
@@ -221,8 +249,8 @@ spawn_threads() {
 		if (local_file_name.find("/") != std::string::npos)
 			local_file_name = local_file_name.substr(local_file_name.find_last_of("/") + 1); 
 		local_file_name = local_path + local_file_name; 
-		std::cout << local_file_name << '\n';
 
+		std::cout << local_file_name << '\n';
 		std::ofstream copied_file(local_file_name, std::ofstream::binary |
 							   std::ofstream::trunc);
 		
@@ -265,18 +293,26 @@ copy_file(std::vector<struct thread_info> assignment) {
 
 		send_str(client_sock, req);
 
-		unsigned char recv_buff[v.chunk_size];
+		unsigned char * recv_buff;
+		recv_buff = (unsigned char *)malloc(v.chunk_size);
+		memset(recv_buff, 0, v.chunk_size);
+
 		int byte_num = recv(client_sock, recv_buff, v.chunk_size, 0);
 
 		while (byte_num != v.chunk_size) {
 			int diff = v.chunk_size - byte_num;
 			int old_num = byte_num;
 
-			unsigned char temp_buff[diff];
+			unsigned char * temp_buff;
+			temp_buff = (unsigned char *)malloc(diff);
+			memset(temp_buff, 0, diff);
+			
 			byte_num += recv(client_sock, temp_buff, diff, 0);
 			
 			for (int i = old_num; i < old_num + diff; ++i)
 				recv_buff[i] = temp_buff[i - old_num];
+		
+			free(temp_buff);
 		}
 		
 		for (int i = 0; i < v.chunk_size; ++i)
@@ -290,18 +326,21 @@ copy_file(std::vector<struct thread_info> assignment) {
 		else {
 			std::string file = v.file_name;
 			file = file.substr(file.find(file_name.substr(file_name.find(local_path) + local_path.length())));
-			
-			std::ofstream copied_file(local_path + file, std::ofstream::binary |
-								   std::ofstream::trunc);
+			file = local_path + file;
+
+			std::ofstream copied_file(file, std::ofstream::binary |
+						        std::ofstream::trunc);
 			
 			if (copied_file.is_open()) {
 				copied_file.write((char *)&recv_buff[0], v.chunk_size);
 				copied_file.close();
 			} else {
-				std::cout << "Could not open file\n";
+				std::cout << "Could not open file " << file << '\n';
 				exit(1);
 			}
 		}
+
+		free(recv_buff);
 	}
 	
 	std::string done = "DONE";
