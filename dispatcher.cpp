@@ -68,8 +68,6 @@ send_file_data(const std::string & file_name, const int & start_byte, const int 
 		fclose(file);
 	} 
 
-	//printf("%s", copy_buffer);
-
 	for (int i = 0; i < chunk_size; ++i)
 		copy_buffer[i] = copy_buffer[i] ^ key;
 

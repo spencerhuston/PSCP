@@ -15,11 +15,7 @@ sock(sock), serv_num(servicer_num++), key(make_rand()) {
 	std::string constructor_str = "";
 	constructor_str += "Launching servicer ";
 	constructor_str += std::to_string(serv_num);
-	constructor_str += " with key ";
-	constructor_str += std::to_string(key);
-	constructor_str += ", socket ";
-	constructor_str += std::to_string(sock);
-
+	
 	print(constructor_str);
 
 	service();
@@ -29,11 +25,17 @@ sock(sock), serv_num(servicer_num++), key(make_rand()) {
 // launch servicing process
 void Servicer::
 service() {
-	if (!authenticate_user() || !check_file_dir())
-		return;
+	try {
+		if (!authenticate_user() || !check_file_dir())
+			return;
 
-	get_header();
-	start_thread_dispatch();
+		get_header();
+		start_thread_dispatch();
+	} catch (...) {
+		std::string msg = "Error occurred, servicer ";
+		msg += std::to_string(serv_num);
+		print(msg);
+	}
 }
 
 // request client for username and password and check credentials
@@ -42,29 +44,19 @@ bool Servicer::
 authenticate_user() {
 	std::string authreq_key = "AUTHREQ KEY ";
 	authreq_key += std::to_string(key);
-
-	std::string msg = "\n";
-	print(msg);
-	msg = "authenticate_user()";
-	print(msg);
-	msg = "To client: ";
-	msg += authreq_key;
-	print(msg);
-
+	
 	send(sock, authreq_key.c_str(), authreq_key.length(), 0);
 
 	std::string res = s_recv();
-
-	print(res);
-	msg = "\n\n";
-	print(msg);
 
 	std::istringstream res_ss(res);
 	std::vector<std::string> res_toks((std::istream_iterator<std::string>(res_ss)),
 			std::istream_iterator<std::string>());
 
 	// authenticate here
-	print(res_toks.at(1));
+	std::string msg = "User: ";
+	msg += res_toks.at(1);
+	print(msg);
 
 	return true; 
 }
@@ -72,9 +64,6 @@ authenticate_user() {
 // check if file or directory exists
 bool Servicer::
 check_file_dir() {
-	std::string msg = "\n\ncheck_file_dir()";
-	print(msg);
-
 	std::string res = "VALID";
 	s_send(res);
 
@@ -90,7 +79,6 @@ check_file_dir() {
 		res = home_dir + res.substr(1, res.length() - 1);
 	}
 
-	std::cout << res << '\n';
 	if (!std::filesystem::exists(res)) {
 		std::string err = "NOFILE";
 		s_send(err);
@@ -119,10 +107,6 @@ check_file_dir() {
 	} else {
 		std::string file_info = "IS_DIR FALSE ";
 		file_info += std::to_string(std::filesystem::file_size(res));
-		
-		msg = "To client: ";
-		msg += file_info;
-		print(msg);
 			
 		s_send(file_info);
 	}
@@ -138,24 +122,23 @@ iterate_directory(const std::filesystem::path& dir) {
 	std::vector<std::string> vec_dir_subFiles;
 	std::vector<std::string> vec_dir_subFilesSize;
 
-	for (auto& path: fs::recursive_directory_iterator(dir)){
-		if (fs::is_directory(path)){
+	for (auto& path: fs::recursive_directory_iterator(dir)) {
+		if (fs::is_directory(path)) {
 			returnString += path.path();
 			returnString += "/ FI ";
 			iterate_directory(path);
-		}else{
+		} else {
 			vec_dir_subFiles.push_back(path.path());
 			std::uintmax_t subFileSize = fs::file_size(path);
 			vec_dir_subFilesSize.push_back(std::to_string(subFileSize));
 		}
 	}
-	for (unsigned int i = 0; i < vec_dir_subFiles.size(); i++){
+	for (unsigned int i = 0; i < vec_dir_subFiles.size(); i++) {
 		returnString += vec_dir_subFiles.at(i) + " ";
 		returnString += vec_dir_subFilesSize.at(i) + " ";
 	}
-	if (!returnString.empty()){	//remove last space from dir_info_files
+	if (!returnString.empty())	//remove last space from dir_info_files
 		returnString.pop_back();
-	}
 
 	return returnString;
 }
@@ -164,10 +147,6 @@ iterate_directory(const std::filesystem::path& dir) {
 void Servicer::
 get_header() {
 	std::string req = s_recv();
-
-	std::string msg = "get_header()";
-	print(msg);	
-	print(req);
 
 	std::istringstream req_ss(req);
 	std::vector<std::string> req_toks((std::istream_iterator<std::string>(req_ss)),
@@ -182,9 +161,6 @@ get_header() {
 // begin thread dispatch loop to accept connections
 void Servicer::
 start_thread_dispatch() {
-	std::string msg = "\n\nstart_thread_dispatch()";
-	print(msg);
-	
 	int dispatch_sock, client_sock;
 	socklen_t sin_size;
 	struct sockaddr_storage client_addr;
@@ -195,10 +171,6 @@ start_thread_dispatch() {
 		perror("Servicer listen");
 		return;
 	};	
-
-	msg = "Dispatch sock: ";
-	msg += std::to_string(dispatch_sock);
-	print(msg);
 
 	std::string ok = "OK";
 	s_send(ok);
@@ -251,7 +223,9 @@ start_thread_dispatch() {
 		if (++num_accepted == thread_num)
 			break;
 	}
-	msg = "servicer done";
+	std::string msg = "Servicer ";
+	msg += std::to_string(serv_num);
+	msg += " done";
 	print(msg);
 }
 

@@ -34,7 +34,6 @@ authenticate() {
 
 	start = std::chrono::high_resolution_clock::now();
 	send_str(sock, res);
-	std::cout << "To server: " << res << '\n';
 
 	res = recv_str(sock);
 	if (res != "VALID") {
@@ -45,8 +44,6 @@ authenticate() {
 
 	res = "FILENAME ";
 	res += file_name;
-
-	std::cout << res << '\n';
 
 	send_str(sock, res);
 	res = recv_str(sock);
@@ -160,7 +157,8 @@ assign_threads(const std::vector<std::string> & file_info) {
 			if (file_tokens.at(i) == "FI")
 				file_start = i;
 
-		int split = (file_tokens.size() - file_start - 1) / 2 / thread_num;
+		int split_diff = (file_tokens.size() - file_start - 1) / 2;
+		int split = (split_diff >= thread_num) ? split_diff / thread_num : 1;
 		std::vector<thread_info> full_file_assignment;
 		
 		for (unsigned int i = 0; i < file_tokens.size(); i += 2) {
@@ -168,6 +166,8 @@ assign_threads(const std::vector<std::string> & file_info) {
 				std::string file = file_tokens.at(i);
 				file = file.substr(file.find(file_name.substr(file_name.find(local_path) + local_path.length())));
 				fs::create_directory(local_path + file);
+
+				std::cout << local_path + file << '\n';
 			} else {
 				struct thread_info info;
 				info.file_name = file_tokens.at(i);
@@ -176,18 +176,22 @@ assign_threads(const std::vector<std::string> & file_info) {
 				info.chunk_size = stoi(file_tokens.at(i + 1));	//chunk size is full file size
 				full_file_assignment.push_back(info);
 
-				if (full_file_assignment.size() == split) {
+				if ((full_file_assignment.size() == (unsigned)split) ||
+				    (i + 2) == file_tokens.size()) {
 					thread_assignments.push_back(full_file_assignment);
 					full_file_assignment.clear();
 				}
+
 			}
 		}
 
-		if (thread_assignments.size() == thread_num + 1) {
-			for (auto ti : thread_assignments.back())
-				thread_assignments.at(thread_num - 1).push_back(ti);
+		if (thread_assignments.size() > (unsigned)thread_num) {
+			for (unsigned int i = thread_num; i < thread_assignments.size(); ++i)
+				for (auto ti : thread_assignments.at(i))
+					thread_assignments.at(i - thread_num).push_back(ti);
 
-			thread_assignments.pop_back();
+			while (thread_assignments.size() > (unsigned)thread_num)
+				thread_assignments.pop_back();
 		}
 	}	
 }
@@ -210,8 +214,6 @@ request_copy() {
 
 		serv_port = atoi(host_info.at(0).c_str());	
 		host_ip = host_info.at(1);
-		std::cout << "serv port: " << std::to_string(serv_port) << '\n';
-		std::cout << "serv ip: " << host_ip << '\n';
 
 		return true;
 	}
@@ -250,7 +252,6 @@ spawn_threads() {
 			local_file_name = local_file_name.substr(local_file_name.find_last_of("/") + 1); 
 		local_file_name = local_path + local_file_name; 
 
-		std::cout << local_file_name << '\n';
 		std::ofstream copied_file(local_file_name, std::ofstream::binary |
 							   std::ofstream::trunc);
 		
@@ -258,6 +259,8 @@ spawn_threads() {
 			//printf("%s\n", file_buffer);
 			copied_file.write((char *)&file_buffer[0], file_size);
 			copied_file.close();
+
+			std::cout << local_file_name << '\n';
 		} else {
 			std::cout << "Could not open file\n";
 			exit(1);
@@ -268,7 +271,7 @@ spawn_threads() {
 }
 
 void Client::
-copy_file(std::vector<struct thread_info> assignment) {
+copy_file(const std::vector<struct thread_info> assignment) {
 	int client_sock;
 
 	if (!bind_socket(host_ip, client_sock, serv_port)) {
@@ -290,6 +293,21 @@ copy_file(std::vector<struct thread_info> assignment) {
 		req += std::to_string(v.chunk_size);
 		req += " ";
 		req += std::to_string(v.start_byte);
+		
+		// local file name
+		std::string file = v.file_name;
+		file = file.substr(file.find(file_name.substr(file_name.find(local_path) + local_path.length())));
+		file = local_path + file;
+
+		if (is_dir && v.chunk_size == 0) {
+			std::ofstream copied_file(file, std::ofstream::binary |
+							std::ofstream::trunc);
+			if (copied_file.is_open())
+				copied_file.close();
+			else 
+				std::cout << "Error making " << file << '\n';
+			return;
+		}
 
 		send_str(client_sock, req);
 
@@ -299,6 +317,7 @@ copy_file(std::vector<struct thread_info> assignment) {
 
 		int byte_num = recv(client_sock, recv_buff, v.chunk_size, 0);
 
+		//stop trying to receive data after 10 tries
 		while (byte_num != v.chunk_size) {
 			int diff = v.chunk_size - byte_num;
 			int old_num = byte_num;
@@ -324,16 +343,14 @@ copy_file(std::vector<struct thread_info> assignment) {
 			for (int i = v.start_byte; i < v.start_byte + v.chunk_size; ++i)
 				file_buffer[i] = recv_buff[i - v.start_byte];
 		else {
-			std::string file = v.file_name;
-			file = file.substr(file.find(file_name.substr(file_name.find(local_path) + local_path.length())));
-			file = local_path + file;
-
 			std::ofstream copied_file(file, std::ofstream::binary |
 						        std::ofstream::trunc);
 			
 			if (copied_file.is_open()) {
 				copied_file.write((char *)&recv_buff[0], v.chunk_size);
 				copied_file.close();
+
+				std::cout << file << '\n';
 			} else {
 				std::cout << "Could not open file " << file << '\n';
 				exit(1);
@@ -344,7 +361,9 @@ copy_file(std::vector<struct thread_info> assignment) {
 	}
 	
 	std::string done = "DONE";
-	send_str(client_sock, done);	
+	send_str(client_sock, done);
+
+	close(client_sock);
 }
 
 void * 
@@ -474,22 +493,22 @@ main(int argc, char ** argv) {
 		exit(1);
 	}
 
-	std::cout << "Connection made\n";
-	std::cout << "Socket: " << std::to_string(sock) << '\n';
+	try {
+		// receive authentication request and XOR key
+		std::string recv_buff = recv(sock);	
 
-	// receive authentication request and XOR key
-	std::string recv_buff = recv(sock);	
-	std::cout << recv_buff << '\n';
+		// construct client object to take over the rest of the process
+		int thread_num = atoi(argv[1]);
+		key = parse_key(std::string(recv_buff));
 
-	// construct client object to take over the rest of the process
-	int thread_num = atoi(argv[1]);
-	key = parse_key(std::string(recv_buff));
-	std::cout << std::to_string(key) << '\n';
-
-	std::unique_ptr<Client> client(new Client(
-					file_name,
-					thread_num));  
-
+		std::unique_ptr<Client> client(new Client(
+						file_name,
+						thread_num));  
+	} catch(...) {
+		std::cout << "Error occurred\n";
+		exit(1);	
+	}
+	
 	close(sock);
 
 	end = std::chrono::high_resolution_clock::now();

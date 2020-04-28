@@ -94,14 +94,7 @@ main(int argc, char ** argv) {
 	auto host_info = get_host_info();
 	std::cout << "Server name: " << host_info.first << '\n';
 	std::cout << "Server IP: " << host_info.second << '\n';
-
-	std::cout << "\nMain socket: " << server_sock << '\n';
-
-	struct sockaddr_in port_sin;
-	socklen_t port_len = sizeof(port_sin);
-	getsockname(server_sock, (struct sockaddr *)&port_sin, &port_len);
-	std::cout << std::to_string(ntohs(port_sin.sin_port)) << '\n';
-
+	
 	struct sigaction kill_handler;
 	kill_handler.sa_handler = handler;
 	sigemptyset(&kill_handler.sa_mask);
