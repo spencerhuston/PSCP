@@ -6,6 +6,7 @@ Directions:
 2. Server usage is *./pscp_server*
 3. Client usage is *./pscp thread_num host:file_path local_path*
 
-NOTE: 
+NOTES: 
 - If copying a single file, it will be copied in parallel. 
 - If copying a directory, each file will be copied by a single thread (among the pool)
+- This actually isn't that secure, more emphasis was placed on the parallelism aspect
