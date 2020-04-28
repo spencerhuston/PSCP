@@ -90,11 +90,8 @@ assign_threads(const std::vector<std::string> & file_info) {
 		thread_assignments.back().front().chunk_size += file_size % thread_num;
 	} else { // directory	
 		file_size = atoi(file_info.at(2).c_str());	//byte_num for receiving string
-		std::cout << "file_info = ";
-		for (int i = 0; i < file_info.size(); i++) {
-			std::cout << file_info.at(i) << ' ';
-		}
-		std::cout << "\n";
+
+		is_dir = true;
 
 		char recv_buff[file_size + 1];		// will contain all files and file sizes
 		int byte_num;
@@ -105,48 +102,64 @@ assign_threads(const std::vector<std::string> & file_info) {
 		recv_buff[byte_num] = '\0';
 		std::string recv_buff_string = recv_buff;	//so that we can use std::transform
 
-		std::transform(recv_buff_string.begin(), recv_buff_string.end(), recv_buff_string.begin(),
+		std::transform(recv_buff_string.begin(), recv_buff_string.end(), 
+			       recv_buff_string.begin(),
 			[](char c) { return c ^ key; });
 
-		std::cout << "recv_buff = " << recv_buff_string;
-		std::cout << "\n";
 
 		//segment recv buffer into a vector with all tokens
 		std::stringstream res_ss(recv_buff_string);
 		std::vector<std::string> file_tokens((std::istream_iterator<std::string>(res_ss)),
 				 std::istream_iterator<std::string>());
 		
-		std::cout << "file_tokens = ";
-		for (int i = 0; i < file_tokens.size(); i++) {
-			std::cout << file_tokens.at(i) << ' ';
-		}
-		std::cout << "\n";
-		
 		//make directory (that would also contain files and sub-directories)
 		namespace fs = std::filesystem;
 
-		if (fs::exists(file_name)) {
-      		std:: cout << "Unable to copy as directory of that name already exists\n";
-			return;
+		std::string temp = file_name;
+		reverse(temp.begin(), temp.end());	
+		if (file_name.find("/") != std::string::npos) {
+			int index = temp.find("/");
+			if (!index) 
+				index = temp.substr(1).find("/");
+
+			file_name = file_name.substr(file_name.length() - index - 1);
 		}
+
+		file_name = local_path + file_name; 
 		
 		fs::create_directory(file_name);
-		std::cout << "dir name: " << file_name << "\n";
 
-		for (int i = 0; i < file_tokens.size(); i += 2){
-			if (file_tokens.at(i + 1) == "FI"){
+		int split = file_tokens.size() / 2 / thread_num;
+		for (unsigned int i = 0; i < file_tokens.size(); i += 2) {
+			std::vector<thread_info> full_file_assignment;
+		
+			if (file_tokens.at(i + 1) == "FI") {
 				//make that directory
 				//fs::path subdirPath = file_tokens.at(i);
-				fs::create_directory(file_tokens.at(i));
-			}else{
+				std::cout << file_tokens.at(i) << '\n';
+
+				std::string file = file_tokens.at(i);
+				file = file.substr(file.find(file_name.substr(file_name.find(local_path) + local_path.length())));
+				fs::create_directory(local_path + file);
+			} else {
 				struct thread_info info;
 				info.file_name = file_tokens.at(i);
 				info.start_byte = 0;
 				info.chunk_size = stoi(file_tokens.at(i + 1));	//chunk size is full file size
-				std::vector<thread_info> full_file_assignment;
 				full_file_assignment.push_back(info);
-				thread_assignments.push_back(full_file_assignment);
+
+				if (full_file_assignment.size() == split) {
+					thread_assignments.push_back(full_file_assignment);
+					full_file_assignment.clear();
+				}
 			}
+		}
+
+		if (thread_assignments.size() == thread_num + 1) {
+			for (auto ti : thread_assignments.back())
+				thread_assignments.at(thread_num - 1).push_back(ti);
+
+			thread_assignments.pop_back();
 		}
 	}	
 }
@@ -275,7 +288,19 @@ copy_file(std::vector<struct thread_info> assignment) {
 			for (int i = v.start_byte; i < v.start_byte + v.chunk_size; ++i)
 				file_buffer[i] = recv_buff[i - v.start_byte];
 		else {
-			// write entire file
+			std::string file = v.file_name;
+			file = file.substr(file.find(file_name.substr(file_name.find(local_path) + local_path.length())));
+			
+			std::ofstream copied_file(local_path + file, std::ofstream::binary |
+								   std::ofstream::trunc);
+			
+			if (copied_file.is_open()) {
+				copied_file.write((char *)&recv_buff[0], v.chunk_size);
+				copied_file.close();
+			} else {
+				std::cout << "Could not open file\n";
+				exit(1);
+			}
 		}
 	}
 	

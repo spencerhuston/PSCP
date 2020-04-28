@@ -83,9 +83,11 @@ check_file_dir() {
 	res = res.substr(res.find(" ") + 1, res.length() - res.find(" "));
 
 	// replace tilde with user's home directory
+	std::string home_dir = "";
 	if (res.at(0) == '~') {
 		struct passwd * pw = getpwuid(getuid());
-		res = std::string(pw->pw_dir) + res.substr(1, res.length() - 1);
+		home_dir = std::string(pw->pw_dir);
+		res = home_dir + res.substr(1, res.length() - 1);
 	}
 
 	std::cout << res << '\n';
@@ -104,11 +106,14 @@ check_file_dir() {
 		std::string dir_info_files = iterate_directory(res);
 		
 		int byte_num = dir_info_files.size();
-		dir_info += std::to_string(byte_num) + " ";
+		dir_info += std::to_string(byte_num);
 		std::cout << "dir_info = " + dir_info;
 		s_send(dir_info);
 		std::cout << std::endl;
-
+		
+		struct passwd * pw = getpwuid(getuid());
+		home_dir = std::string(pw->pw_dir);
+		
 		dir_info = dir_info_files;
 		std::cout << "dir_info = " + dir_info;
 		std::cout << std::endl;
@@ -146,7 +151,7 @@ iterate_directory(const std::filesystem::path& dir) {
 			vec_dir_subFilesSize.push_back(std::to_string(subFileSize));
 		}
 	}
-	for (int i = 0; i < vec_dir_subFiles.size(); i++){
+	for (unsigned int i = 0; i < vec_dir_subFiles.size(); i++){
 		returnString += vec_dir_subFiles.at(i) + " ";
 		returnString += vec_dir_subFilesSize.at(i) + " ";
 	}

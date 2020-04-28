@@ -61,9 +61,7 @@ send_file_data(const std::string & file_name, const int & start_byte, const int 
 	
 	std::ifstream file(file_name, std::ifstream::binary);
 	file.seekg(start_byte);
-	int start = file.tellg();
 	file.read((char *)&copy_buffer[0], chunk_size);
-	int end = file.tellg();
 	file.close();
 
 	//printf("%s", copy_buffer);

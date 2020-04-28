@@ -53,7 +53,7 @@ void crypt_pscp(std::string & str);
 
 class Client {
 	private:
-		const std::string file_name;
+		std::string file_name;
 		int thread_num, serv_port, file_size;
 		std::string header, host_ip;
 		bool is_dir;
