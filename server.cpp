@@ -43,10 +43,17 @@ void bind_socket(int & sock, int port) {
 
 	const char * port_str = (port == -1) ? NULL : std::to_string(port).c_str();
 	const char * host_str = (port == -1) ? get_host_info().first.c_str() : NULL;
-	
+
 	if ((res = getaddrinfo(host_str, port_str, &hints, &serv_info)) != 0) {
 		fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(res));
-		exit(1);
+	}
+
+	if (res != 0 && port == -1) {
+		host_str = get_host_info().second.c_str();
+		if ((res = getaddrinfo(host_str, port_str, &hints, &serv_info)) != 0) {
+			fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(res));
+			throw;
+		}
 	}	
 
 	for (p = serv_info; p != NULL; p = p->ai_next) {

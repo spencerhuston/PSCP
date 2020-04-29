@@ -90,17 +90,30 @@ assign_threads(const std::vector<std::string> & file_info) {
 
 		is_dir = true;
 
-		char * recv_buff;
-		recv_buff = (char *)malloc(file_size + 1);
+		unsigned char * recv_buff;
+		recv_buff = (unsigned char *)malloc(file_size + 1);
 		memset(recv_buff, 0, file_size + 1);
 
-		int byte_num;
-		if ((byte_num = recv(sock, recv_buff, file_size, 0)) == -1) {
-			perror("recv");
-			exit(1);
+		int byte_num = recv(sock, recv_buff, file_size, 0);
+
+		//stop trying to receive data after 10 tries
+		while (byte_num != file_size) {
+			int diff = file_size - byte_num;
+			int old_num = byte_num;
+
+			unsigned char * temp_buff;
+			temp_buff = (unsigned char *)malloc(diff);
+			memset(temp_buff, 0, diff);
+			
+			byte_num += recv(sock, temp_buff, diff, 0);
+			
+			for (int i = old_num; i < old_num + diff; ++i)
+				recv_buff[i] = temp_buff[i - old_num];
+		
+			free(temp_buff);
 		}
-		recv_buff[byte_num] = '\0';
-		std::string recv_buff_string = recv_buff;	//so that we can use std::transform
+		
+		std::string recv_buff_string = std::string((char *)&recv_buff[0]);	//so that we can use std::transform
 		free(recv_buff);
 
 		std::transform(recv_buff_string.begin(), recv_buff_string.end(), 
@@ -275,7 +288,7 @@ copy_file(const std::vector<struct thread_info> assignment) {
 	int client_sock;
 
 	if (!bind_socket(host_ip, client_sock, serv_port)) {
-		close(sock);	
+		close(client_sock);	
 		exit(1);
 	}
 	
