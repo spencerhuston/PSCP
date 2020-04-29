@@ -4,7 +4,7 @@
 Directions:
 1. Simply clone and run *make -j8*
 2. Server usage is *./pscp_server*
-3. Client usage is *./pscp thread_num host:file_path local_path*
+3. Client usage is *./pscp thread_num host:file_path local_path*, example: ./pscp 8 127.0.0.1:~/text_file.txt ./
 
 NOTES: 
 - If copying a single file, it will be copied in parallel. 
