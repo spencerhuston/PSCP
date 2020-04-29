@@ -10,4 +10,5 @@ NOTES:
 - If copying a single file, it will be copied in parallel. 
 - If copying a directory, each file will be copied by a single thread (among the pool)
 - **This actually isn't that secure**, more emphasis was placed on the parallelism aspect. For example, authentication doesn't actually do anything, we could have implemented it but wanted to focus more on the actual networking aspect of the project, given that it's for a networks course.
-- **There may be some errors when running**. If it says "Error occurred" just run it again. The program is not perfect.
+- **There may be some errors when running**. If it says "Error occurred" just run it again.
+- **The file transfer is one way** from server to client. So you cannot do *./pscp thread_num local_path host:file_path*
